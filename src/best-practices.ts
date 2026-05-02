@@ -49,13 +49,6 @@ class UniversalCodeAnalyzer {
   
   // Detect naming conventions used in the project
   detectNamingConventions(files: Array<{ path: string; content: string }>): string {
-    const namingPatterns = {
-      camelCase: /\b[a-z]+(?:[A-Z][a-z]*)*\b/g,
-      snake_case: /\b[a-z]+(?:_[a-z]+)*\b/g,
-      PascalCase: /\b[A-Z][a-z]+(?:[A-Z][a-z]*)*\b/g,
-      UPPER_SNAKE: /\b[A-Z]+(?:_[A-Z]+)*\b/g,
-    };
-    
     const scores: Record<string, number> = {
       camelCase: 0,
       snake_case: 0,
@@ -190,14 +183,13 @@ class UniversalCodeAnalyzer {
       }
     }
     
-    // 3. Deep nesting (universal)
-    let maxNesting = 0;
-    let currentNesting = 0;
-    for (const line of lines) {
-      const indent = line.match(/^(\s*)/)?.[1] || '';
-      const depth = indent.length / (indent.includes('\t') ? 1 : 2); // Assume 2 spaces
-      if (depth > maxNesting) maxNesting = depth;
-    }
+     // 3. Deep nesting (universal)
+     let maxNesting = 0;
+     for (const line of lines) {
+       const indent = line.match(/^(\s*)/)?.[1] || '';
+       const depth = indent.length / (indent.includes('\t') ? 1 : 2); // Assume 2 spaces
+       if (depth > maxNesting) maxNesting = depth;
+     }
     
     if (maxNesting > 4) {
       issues.push({

@@ -14,6 +14,8 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import * as crypto from "node:crypto";
+import * as readline from "node:readline";
+import { createReadStream } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { performUniversalAudit as performAudit, generateUniversalAuditPrompt as generateAuditPrompt, type AuditReport } from "./best-practices.js";
 import { getAuditPrompt } from "./audit.js";
@@ -140,6 +142,32 @@ function isBinaryFile(content: Buffer): boolean {
     if (content[i] === 0) return true;
   }
   return false;
+}
+
+// Stream read large files with size limit
+async function streamReadFile(filePath: string, maxBytes: number): Promise<{ content: string; bytesRead: number }> {
+  const readStream = createReadStream(filePath, { encoding: 'utf-8' });
+  const rl = readline.createInterface({ input: readStream, crlfDelay: Infinity });
+  
+  let content = '';
+  let bytesRead = 0;
+  const lines: string[] = [];
+  
+  for await (const line of rl) {
+    const lineWithNewline = line + '\n';
+    if (bytesRead + Buffer.byteLength(lineWithNewline) > maxBytes) {
+      break;
+    }
+    lines.push(line);
+    bytesRead += Buffer.byteLength(lineWithNewline);
+  }
+  
+  readStream.destroy();
+  
+  return {
+    content: lines.join('\n'),
+    bytesRead,
+  };
 }
 
 async function getCacheSize(dirPath: string): Promise<number> {
@@ -372,10 +400,13 @@ async function sampleCodebasePatterns(dirPath: string) {
   });
 
 // Limit to at most 3 random files to avoid huge token usage, but enough to establish a pattern
+// Using crypto.randomBytes for better randomness (not cryptographic security, but better than Math.random)
 const selectedFiles: string[] = [];
 const shuffled = [...foundFiles];
 for (let i = 0; i < 3 && shuffled.length > 0; i++) {
-  const idx = Math.floor(Math.random() * shuffled.length);
+  const randomBytes = crypto.randomBytes(4);
+  const randomValue = randomBytes.readUInt32BE(0) / 0xFFFFFFFF;
+  const idx = Math.floor(randomValue * shuffled.length);
   selectedFiles.push(shuffled[idx]);
   shuffled.splice(idx, 1);
 }
@@ -479,26 +510,34 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "explore_remote_repo",
-        description:
-          "Clones a remote git repository to a temporary directory and finds README files and documentation.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            repoUrl: {
-              type: "string",
-              description: "The URL of the git repository (e.g., https://github.com/user/repo.git).",
+          description:
+            "Clones a remote git repository to a temporary directory and finds documentation. Supports authentication for private repos.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              repoUrl: {
+                type: "string",
+                description: "The URL of the git repository (e.g., https://github.com/user/repo.git).",
+              },
+              branch: {
+                type: "string",
+                description: "Optional. Specific branch to explore (e.g., 'docs', 'gh-pages', 'v14'). If not provided, explores the default branch.",
+              },
+              localProjectPath: {
+                type: "string",
+                description: "Optional. The absolute path to the local project to use its .docsgrep workspace for storing cloned repositories.",
+              },
+              authToken: {
+                type: "string",
+                description: "Optional. Authentication token for private repositories (GitHub PAT, GitLab token, etc.). For HTTPS URLs, this will be added to the URL.",
+              },
+              sshKeyPath: {
+                type: "string",
+                description: "Optional. Path to SSH private key for authentication. Uses ssh-agent or GIT_SSH_COMMAND.",
+              }
             },
-            branch: {
-              type: "string",
-              description: "Optional. Specific branch to explore (e.g., 'docs', 'gh-pages', 'v14'). If not provided, explores the default branch.",
-            },
-            localProjectPath: {
-              type: "string",
-              description: "Optional. The absolute path to the local project to use its .docsgrep workspace for storing cloned repositories.",
-            }
+            required: ["repoUrl"],
           },
-          required: ["repoUrl"],
-        },
       },
         {
           name: "read_doc_file",
@@ -636,27 +675,16 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
       try {
         const projectPath = validateDirPath(validateStringParam(rawPath, "projectPath"));
-        const workspacePath = path.join(projectPath, ".docsgrep");
-        await fs.mkdir(path.join(workspacePath, "tmp"), { recursive: true });
+        const workspacePath = path.join(os.tmpdir(), "docsgrep", path.basename(projectPath));
+        
         await fs.mkdir(path.join(workspacePath, "repos"), { recursive: true });
         await fs.mkdir(path.join(workspacePath, "logs"), { recursive: true });
         await fs.mkdir(path.join(workspacePath, "reports"), { recursive: true });
 
-        const gitignorePath = path.join(projectPath, ".gitignore");
-        try {
-          const gitignoreContent = await fs.readFile(gitignorePath, "utf-8");
-          if (!gitignoreContent.includes(".docsgrep")) {
-            await fs.appendFile(gitignorePath, "\n.docsgrep\n");
-          }
-        } catch (e: any) {
-          if (e.code === "ENOENT") {
-            await fs.writeFile(gitignorePath, ".docsgrep\n");
-          }
-        }
-
         const contextInfo = {
           initializedAt: new Date().toISOString(),
           projectPath: projectPath,
+          workspacePath: workspacePath,
           version: pkg.version
         };
         await fs.writeFile(path.join(workspacePath, "context.json"), JSON.stringify(contextInfo, null, 2));
@@ -665,7 +693,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           content: [
             {
               type: "text",
-              text: `Successfully initialized .docsgrep workspace at ${workspacePath}. The directory has been added to .gitignore.`,
+              text: `Successfully initialized docsgrep workspace at ${workspacePath} (system temp directory).`,
             },
           ],
         };
@@ -844,27 +872,61 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
 
-case "explore_remote_repo": {
-  const { repoUrl, branch, localProjectPath } = request.params.arguments as { repoUrl: string, branch?: string, localProjectPath?: string };
+    case "explore_remote_repo": {
+      const { repoUrl, branch, localProjectPath, authToken, sshKeyPath } = request.params.arguments as {
+        repoUrl: string;
+        branch?: string;
+        localProjectPath?: string;
+        authToken?: string;
+        sshKeyPath?: string;
+      };
 
-    try {
-      // Validate repoUrl
-      const validatedUrl = validateStringParam(repoUrl, "repoUrl");
       try {
-        new URL(validatedUrl);
-      } catch (e) {
-        throw new Error("Invalid repoUrl: not a valid URL");
-      }
-      if (!/^(https?|git|ssh):\/\//.test(validatedUrl)) {
-        throw new Error("Invalid repoUrl: must use http, https, git, or ssh protocol");
-      }
+        // Validate repoUrl
+        const validatedUrl = validateStringParam(repoUrl, "repoUrl");
+        try {
+          new URL(validatedUrl);
+        } catch (e) {
+          throw new Error("Invalid repoUrl: not a valid URL");
+        }
+        if (!/^(https?|git|ssh):\/\//.test(validatedUrl)) {
+          throw new Error("Invalid repoUrl: must use http, https, git, or ssh protocol");
+        }
 
-      let baseReposDir = path.join(os.tmpdir(), "docsgrep-repos");
-      
-      if (localProjectPath) {
-        const validatedLocalPath = validateDirPath(localProjectPath);
-        baseReposDir = path.join(validatedLocalPath, ".docsgrep", "repos");
-      }
+        // Handle authentication
+        let authenticatedUrl = validatedUrl;
+        if (authToken) {
+          // Inject token into HTTPS URLs
+          if (validatedUrl.startsWith('https://') || validatedUrl.startsWith('http://')) {
+            // Format: https://<token>@github.com/user/repo.git
+            const urlObj = new URL(validatedUrl);
+            urlObj.username = authToken;
+            authenticatedUrl = urlObj.toString();
+            logger.info("Using token authentication for HTTPS repo");
+          } else {
+            logger.warn("authToken provided but URL is not HTTPS, token may not be used");
+          }
+        }
+
+        const gitOptions: any = {};
+        if (sshKeyPath) {
+          // Use specific SSH key
+          const resolvedKeyPath = path.resolve(sshKeyPath);
+          try {
+            await fs.access(resolvedKeyPath);
+          } catch (e) {
+            throw new Error(`SSH key not found at: ${resolvedKeyPath}`);
+          }
+          gitOptions.config = [`core.sshCommand=ssh -i ${resolvedKeyPath} -o StrictHostKeyChecking=no`];
+          logger.info("Using SSH key authentication", { keyPath: resolvedKeyPath });
+        }
+
+        let baseReposDir = path.join(os.tmpdir(), "docsgrep", "repos");
+        
+        if (localProjectPath) {
+          const validatedLocalPath = validateDirPath(localProjectPath);
+          baseReposDir = path.join(os.tmpdir(), "docsgrep", path.basename(validatedLocalPath), "repos");
+        }
         await fs.mkdir(baseReposDir, { recursive: true });
 
         const hashInput = branch ? `${repoUrl}#${branch}` : repoUrl;
@@ -876,31 +938,45 @@ case "explore_remote_repo": {
         let message = "";
         
         try {
-          // Try to pull existing repo first with retry
-          logger.info(`Attempting to pull latest changes`, { url: validatedUrl, branch: branch || "default", target: targetDir });
-          const git: SimpleGit = simpleGit(targetDir);
-          
-          const fetchArgs = ["--depth", "1"];
-          if (branch) {
-            await withRetry(() => withTimeout(git.fetch("origin", branch, fetchArgs), GIT_TIMEOUT_MS, "git fetch"), MAX_RETRY_ATTEMPTS, "git fetch");
-          } else {
-            await withRetry(() => withTimeout(git.fetch(fetchArgs), GIT_TIMEOUT_MS, "git fetch"), MAX_RETRY_ATTEMPTS, "git fetch");
+          // Check if repo already exists in cache
+          let repoExists = false;
+          try {
+            await fs.access(targetDir);
+            await fs.access(path.join(targetDir, ".git"));
+            repoExists = true;
+          } catch (e) {
+            repoExists = false;
           }
 
-          await withRetry(() => withTimeout(git.reset(["--hard", "FETCH_HEAD"]), GIT_TIMEOUT_MS, "git reset"), MAX_RETRY_ATTEMPTS, "git reset");
-          await withRetry(() => withTimeout(git.clean("f", ["-d"]), GIT_TIMEOUT_MS, "git clean"), MAX_RETRY_ATTEMPTS, "git clean");
-          message = `Successfully updated and explored repository. Found {count} files.`;
+          if (repoExists) {
+            // Repo exists, try to pull latest changes
+            logger.info(`Attempting to pull latest changes`, { url: validatedUrl, branch: branch || "default", target: targetDir });
+            const git: SimpleGit = simpleGit(targetDir, gitOptions);
+            
+            const fetchArgs = ["--depth", "1"];
+            if (branch) {
+              await withRetry(() => withTimeout(git.fetch("origin", branch, fetchArgs), GIT_TIMEOUT_MS, "git fetch"), MAX_RETRY_ATTEMPTS, "git fetch");
+            } else {
+              await withRetry(() => withTimeout(git.fetch(fetchArgs), GIT_TIMEOUT_MS, "git fetch"), MAX_RETRY_ATTEMPTS, "git fetch");
+            }
+
+            await withRetry(() => withTimeout(git.reset(["--hard", "FETCH_HEAD"]), GIT_TIMEOUT_MS, "git reset"), MAX_RETRY_ATTEMPTS, "git reset");
+            await withRetry(() => withTimeout(git.clean("f", ["-d"]), GIT_TIMEOUT_MS, "git clean"), MAX_RETRY_ATTEMPTS, "git clean");
+            message = `Successfully updated and explored repository. Found {count} files.`;
+          } else {
+            throw new Error("Repo not found in cache, need to clone");
+          }
         } catch (e) {
-          // Repo doesn't exist, clone it with retry
+          // Repo doesn't exist or update failed, clone it with retry
           logger.info(`Cloning repository`, { url: validatedUrl, branch: branch || "default", target: targetDir });
-          const git: SimpleGit = simpleGit();
+          const git: SimpleGit = simpleGit(gitOptions);
           
           const cloneArgs = ["--depth", "1"];
           if (branch) {
             cloneArgs.push("--branch", branch);
           }
           
-          await withRetry(() => withTimeout(git.clone(validatedUrl, targetDir, cloneArgs), GIT_TIMEOUT_MS, "git clone"), MAX_RETRY_ATTEMPTS, "git clone");
+          await withRetry(() => withTimeout(git.clone(authenticatedUrl, targetDir, cloneArgs), GIT_TIMEOUT_MS, "git clone"), MAX_RETRY_ATTEMPTS, "git clone");
           message = `Successfully cloned and explored repository. Found {count} files.`;
         }
 
@@ -950,11 +1026,21 @@ case "explore_remote_repo": {
           throw new Error("Path is not a file");
         }
         
+        // Stream/chunk read for large files
         if (stat.size > MAX_FILE_SIZE_READ) {
-          throw new Error(`File too large: ${stat.size} bytes (max ${MAX_FILE_SIZE_READ})`);
+          logger.info(`File exceeds limit, streaming first ${MAX_FILE_SIZE_READ} bytes`, { filePath, size: stat.size });
+          const streamResult = await streamReadFile(resolvedPath, MAX_FILE_SIZE_READ);
+          return {
+            content: [
+              {
+                type: "text",
+                text: streamResult.content + `\n\n[... File truncated. Total size: ${stat.size} bytes. Showing first ${streamResult.bytesRead} bytes ...]`,
+              },
+            ],
+          };
         }
         
-        // Check if binary
+        // Small file - read normally
         const buffer = await fs.readFile(resolvedPath);
         if (isBinaryFile(buffer)) {
           throw new Error("Cannot read binary file");
@@ -987,9 +1073,26 @@ case "explore_remote_repo": {
 
       try {
         const localProjectPath = validateDirPath(validateStringParam(rawPath, "localProjectPath"));
-        const reposDir = path.join(localProjectPath, ".docsgrep", "repos");
+        let reposDir = path.join(os.tmpdir(), "docsgrep", path.basename(localProjectPath), "repos");
+        
+        // Also check the old .docsgrep path for backward compatibility
+        const oldReposDir = path.join(localProjectPath, ".docsgrep", "repos");
+        try {
+          await fs.access(oldReposDir);
+          reposDir = oldReposDir;
+        } catch (e) {
+          // Use new path
+        }
+        
         const maxAgeMs = (maxAgeDays && maxAgeDays > 0 ? maxAgeDays : 7) * 24 * 60 * 60 * 1000;
         const cleaned = await cleanupCache(reposDir, maxAgeMs);
+        
+        // Also clean system-wide docsgrep cache
+        const systemCacheDir = path.join(os.tmpdir(), "docsgrep");
+        if (reposDir !== systemCacheDir) {
+          const systemCleaned = await cleanupCache(systemCacheDir, maxAgeMs);
+          cleaned.push(...systemCleaned);
+        }
         
         // Also check cache size
         const cacheSize = await getCacheSize(reposDir);
@@ -1144,6 +1247,7 @@ case "explore_remote_repo": {
       try {
         const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
         
+        // Use system temp, not .docsgrep workspace
         const prompt = await getAuditPrompt(dirPath);
         
         return {

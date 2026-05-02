@@ -4,10 +4,10 @@ An MCP (Model Context Protocol) Server designed to efficiently explore local and
 
 ## Features
 
-- **Workspace Initialization:** Set up an isolated `.docsgrep` workspace in your project to store temporary clones, logs, and reports without polluting your working directory.
+- **System-Wide Temp Storage:** All temporary files stored in `/tmp/docsgrep/` - no project pollution, no `.docsgrep/` directory needed.
 - **Local Exploration:** Quickly scan a local directory to find all `README` and `docs/*.md` files.
-- **Remote Exploration:** Clone a remote git repository (using a fast `git clone --depth 1`) directly into your `.docsgrep/tmp` workspace and extract its documentation. Supports retry logic with exponential backoff.
-- **File Reading:** Read the contents of the identified documentation files directly into your LLM context. Includes binary file detection.
+- **Remote Exploration:** Clone a remote git repository (using a fast `git clone --depth 1`) into system temp directory. Supports authentication for private repos. Supports retry logic with exponential backoff.
+- **File Reading:** Read the contents of the identified documentation files directly into your LLM context. Includes binary file detection and streaming for large files (>500KB).
 - **Search Documentation:** Search for patterns within documentation files using regex with the `search_docs` tool.
 - **Cache Management:** Clean up old cached repositories with the `cleanup_cache` tool. Includes cache size monitoring (1GB limit).
 - **Tech Stack Analysis:** Identify project dependencies from multiple package managers (Node.js, PHP, Go, Rust, Python, Ruby, Java, C++, C#, Elixir, Dart, etc.).
@@ -38,9 +38,9 @@ Add the following to your `claude_desktop_config.json`:
 ## Available Tools
 
 1. `init_workspace`
-   - **Description**: Initializes a `.docsgrep` workspace in the specified project directory. Automatically updates `.gitignore` to prevent these temporary files from being tracked.
-   - **Arguments**:
-     - `projectPath` (string): The absolute path to the local project root.
+    - **Description**: Initializes docsgrep workspace metadata. Temporary files are stored system-wide in `/tmp/docsgrep/`. No `.docsgrep/` directory is created in your project.
+    - **Arguments**:
+      - `projectPath` (string): The absolute path to the local project root.
 
 2. `analyze_project_tech_stack`
    - **Description**: Analyzes a local directory to identify the project's technology stack by reading package manager files (e.g., `package.json`, `composer.json`, `go.mod`, `Cargo.toml`, etc.). Provides the contents of these files (up to 50KB each) to give the LLM instant context on project dependencies.
@@ -75,9 +75,9 @@ Add the following to your `claude_desktop_config.json`:
       - `filePath` (string): The absolute path to the file to read.
 
  8. `cleanup_cache`
-    - **Description**: Cleans up old cached repositories in the `.docsgrep` workspace. Removes repos older than the specified max age (default 7 days). Monitors cache size (1GB limit).
+    - **Description**: Cleans up old cached repositories in `/tmp/docsgrep/`. Removes repos older than the specified max age (default: 7 days). Monitors cache size (1GB limit).
     - **Arguments**:
-      - `localProjectPath` (string): The absolute path to the local project containing `.docsgrep` workspace.
+      - `localProjectPath` (string): The absolute path to the local project (used to identify project-specific cache).
       - `maxAgeDays` (number, optional): Maximum age in days for cached repos (default: 7).
 
  9. `search_docs`
@@ -139,6 +139,60 @@ The `audit_code_quality` tool provides **universal** code analysis that works ac
 - ✅ Python (Django, Flask, FastAPI, etc.)
 - ✅ Go, Rust, Ruby, Java, C/C++, C#, PHP, Swift, Dart, Elixir, and more
 - ✅ No configuration needed - adapts to YOUR project's conventions
+
+## 🔒 Enterprise Security Audit
+
+The `security_audit` tool provides **comprehensive security analysis** based on industry standards:
+
+### 🛡️ OWASP Top 10 (2021) Coverage
+- **A01: Broken Access Control** - IDOR, missing authorization
+- **A02: Cryptographic Failures** - Weak hashing (MD5/SHA1), insecure random
+- **A03: Injection** - SQL, NoSQL, XSS, Command injection
+- **A04: Insecure Design** - Missing security design
+- **A05: Security Misconfiguration** - Debug mode, CORS wildcard, insecure defaults
+- **A07: Identification and Authentication Failures** - Weak auth, session issues
+- **A08: Software and Data Integrity Failures** - Insecure deserialization, eval()
+- **A09: Security Logging and Monitoring Failures** - Missing audit logs
+- **A10: Server-Side Request Forgery (SSRF)** - Unvalidated URL fetching
+
+### 🔑 Secrets Detection
+- AWS Access Keys, Secret Keys
+- GitHub Tokens (ghp_)
+- Google API Keys (AIza)
+- Slack Tokens
+- Private Keys (BEGIN PRIVATE KEY)
+- Generic API Keys, Passwords in code
+
+### 🔐 Privacy & Compliance
+- **PII Detection**: Email, Phone, Credit Card, SSN, IP Address
+- **GDPR/CCPA**: PII in logs, client-side PII exposure
+- **ISO/IEC 27001**: Management of vulnerabilities, access control, record protection
+- **Data Handling**: Secure logging, masking, consent
+
+### 📦 Dependency Security
+- Vulnerable packages detection
+- Outdated dependencies (floating versions)
+- Lock file verification
+- Integration with npm audit/pip-audit
+
+### 🎯 Security Audit Workflow
+1. **`get_security_audit_prompt`**: Shows what will be scanned (OWASP, secrets, privacy, dependencies)
+2. **`security_audit`**: Runs full enterprise security analysis
+3. **Review Report**:
+   - **Security Score** (0-100) with Risk Level (Critical/High/Medium/Low)
+   - **OWASP Top 10 Status**: Compliance per category
+   - **Secrets Found**: With file, line, type (truncated for security)
+   - **Privacy Issues**: PII handling, compliance violations
+   - **Compliance Status**: ISO/IEC 27001 check
+   - **Actionable Remediation**: Prioritized by severity with references
+4. **Fix & Monitor**: Use recommendations to secure your code
+
+### 🏢 Enterprise Features
+- ✅ **Language Agnostic**: Works with ANY programming language
+- ✅ **Industry Standards**: OWASP, ISO/IEC, GDPR, CCPA, HIPAA-ready
+- ✅ **Zero Config**: Auto-detects project structure and risks
+- ✅ **Actionable Output**: Line numbers, evidence, impact, remediation
+- ✅ **CI/CD Ready**: JSON output for automation
 
 ## Local Development
 

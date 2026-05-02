@@ -13,7 +13,7 @@ export { performUniversalAudit, generateUniversalAuditPrompt, type AuditReport, 
 
 // Helper to get prompt (re-export)
 export async function getAuditPrompt(dirPath: string): Promise<string> {
-  // Analyze structure for the prompt
+  // Analyze structure for the prompt - use system temp, not .docsgrep
   const structure = await analyzeProjectStructure(dirPath);
   return generateUniversalAuditPrompt(dirPath, {
     hasDocumentation: structure.hasDocumentation,
@@ -24,6 +24,8 @@ export async function getAuditPrompt(dirPath: string): Promise<string> {
     entryPoints: [],
   });
 }
+
+// No longer need .docsgrep workspace functions
 
 // Re-analyze structure for prompt (lightweight)
 async function analyzeProjectStructure(dirPath: string) {

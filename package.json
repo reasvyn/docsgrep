@@ -4,7 +4,7 @@
   "description": "MCP Server to explore local and remote documentation and README files",
   "type": "module",
   "bin": {
-    "docsgrep": "./build/index.js"
+    "docsgrep": "build/index.js"
   },
   "scripts": {
     "build": "tsc",
