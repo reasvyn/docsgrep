@@ -4,21 +4,28 @@ This document defines the foundational engineering mandates for the **docsgrep**
 
 ## 🛠️ Architecture & Runtime
 - **Node.js ESM**: The project is a native ESM module. All local imports MUST include the `.js` extension.
+- **BaseTool Inheritance**: All tool handlers SHOULD inherit from the `BaseTool` class in `src/tools/base.ts`. This ensures consistent logging, masking, and concurrency control.
+- **SSoT Metadata**: Always use the `AppInfo` utility (`src/utils/app-info.ts`) for application versioning, name, and description. Do NOT hardcode these values.
 - **Strict TypeScript**: 
     - No implicit `any`.
     - All tool arguments must use interfaces defined in `src/types/tools.ts`.
-    - Handlers should return `Promise<McpToolResponse>`.
-- **Modular Handlers**: Do not put complex logic in `src/index.ts`. Delegate to specialized modules in `src/tools/` or `src/utils/`.
+    - Use `McpToolResponse` for all tool outputs.
+- **Modular Design**: Delegate logic to specialized modules in `src/tools/` or `src/utils/`. `src/index.ts` should remain a thin entry point.
+
+## 🔍 Scanning & Path Filtering
+- **FileScanner Utility**: Use `FileScanner.findFiles` for all filesystem scanning.
+- **Universal Parameters**: All scanning tools MUST support `includePath` and `excludePath` glob patterns.
+- **Gitignore Respect**: All scanning operations MUST respect the project's `.gitignore` rules by utilizing `getIgnorePatterns` from `src/utils/file.ts`.
 
 ## 🛡️ Security & Integrity
-- **Path Resolution**: Always use `path.resolve()` and validate that paths are within allowed project boundaries when applicable.
-- **Credential Protection**: NEVER log or store detected secrets or PII.
-- **Concurrency**: Use the `operationLimiter` (semaphore) for all filesystem or network-intensive operations.
+- **Credential Protection**: `BaseTool` automatically masks `authToken`. Ensure any new sensitive parameters are added to `maskSensitive`.
+- **Concurrency**: `BaseTool` automatically manages the `operationLimiter`. Use it for any new standalone async tasks.
+- **Validation**: Rigorously validate all `dirPath` inputs using `validateDirPath`.
 
 ## 🧪 Testing Standards
 - **Mocking**: Use `vi.mock` for all external IO.
 - **E2E Integration**: Major tool workflows must have an integration test using the `StdioClientTransport`.
-- **Coverage**: Maintain a statement coverage of at least 55% across the codebase.
+- **Regression Guard**: Every fix for a `catch_bugs` finding should include a specific test case in `tests/`.
 
 ## 📝 Documentation Workflow
 1. Update `docs/tools/<tool_name>.md`.
@@ -26,4 +33,4 @@ This document defines the foundational engineering mandates for the **docsgrep**
 3. Update `README.md` for major architectural changes.
 
 ---
-*Follow these rules to ensure the project remains high-quality and AI-agent friendly.*
+*Follow these rules to ensure docsgrep remains a robust and surgical toolset for AI agents.*
