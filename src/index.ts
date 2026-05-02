@@ -17,6 +17,7 @@ import * as crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { performUniversalAudit as performAudit, generateUniversalAuditPrompt as generateAuditPrompt, type AuditReport } from "./best-practices.js";
 import { getAuditPrompt } from "./audit.js";
+import { performSecurityAudit, generateSecurityAuditPrompt, type SecurityAuditReport } from "./security-audit.js";
 
 // Structured logger
 class Logger {
@@ -579,7 +580,40 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
         {
           name: "get_audit_prompt",
-          description: "Generates an interactive prompt to ask the user what they want to audit. Helps guide the audit process by showing detected tech stack and options.",
+          description: "Generates an interactive prompt to ask the user what they want to audit. Helps guide the audit process by showing detected tech stack and available options.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              dirPath: {
+                type: "string",
+                description: "The absolute path to the local directory.",
+              },
+            },
+            required: ["dirPath"],
+          },
+        },
+        {
+          name: "security_audit",
+          description: "Performs an enterprise-grade security audit covering OWASP Top 10, ISO/IEC 27001, secrets detection, privacy (GDPR/CCPA), and dependency vulnerabilities. Provides comprehensive security analysis with remediation steps.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              dirPath: {
+                type: "string",
+                description: "The absolute path to the local directory to audit.",
+              },
+              filePatterns: {
+                type: "array",
+                items: { type: "string" },
+                description: "Optional. Array of glob patterns to specify which files to scan (e.g., ['**/*.js', '**/*.env']).",
+              },
+            },
+            required: ["dirPath"],
+          },
+        },
+        {
+          name: "get_security_audit_prompt",
+          description: "Generates an interactive prompt for security auditing. Shows what will be scanned (OWASP Top 10, secrets, privacy, dependencies) and available options.",
           inputSchema: {
             type: "object",
             properties: {
@@ -1126,6 +1160,94 @@ case "explore_remote_repo": {
             {
               type: "text",
               text: `Error generating audit prompt: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "security_audit": {
+      const { dirPath: rawPath, filePatterns } = request.params.arguments as {
+        dirPath: string;
+        filePatterns?: string[];
+      };
+
+      try {
+        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+        
+        const release = await operationLimiter.acquire();
+        try {
+          logger.info("Starting security audit", { dirPath, filePatterns });
+          
+          const report: SecurityAuditReport = await performSecurityAudit(dirPath, filePatterns);
+          
+          logger.info("Security audit completed", { 
+            filesScanned: report.summary.filesScanned,
+            totalIssues: report.summary.totalIssues,
+            riskLevel: report.summary.riskLevel,
+          });
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    message: `Security audit completed: ${report.summary.totalIssues} issues found. Security Score: ${report.summary.securityScore}/100 (Risk Level: ${report.summary.riskLevel})`,
+                    summary: report.summary,
+                    owaspTop10: report.owaspTop10,
+                    dependencyAnalysis: report.dependencyAnalysis,
+                    secretsFound: report.secretsFound,
+                    privacyIssues: report.privacyIssues,
+                    complianceStatus: report.complianceStatus,
+                    recommendations: report.recommendations,
+                    note: report.secretsFound.length >= 50 ? "Secrets list limited to 50 items." : undefined,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } finally {
+          release();
+        }
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error during security audit: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "get_security_audit_prompt": {
+      const { dirPath: rawPath } = request.params.arguments as { dirPath: string };
+
+      try {
+        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+        
+        const prompt = generateSecurityAuditPrompt(dirPath);
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: prompt,
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error generating security audit prompt: ${error.message}`,
             },
           ],
           isError: true,
