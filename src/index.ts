@@ -14,8 +14,8 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import * as crypto from "node:crypto";
-import * as readline from "node:readline";
 import { fileURLToPath } from "node:url";
+import { performAudit, generateAuditPrompt, type AuditReport } from "./audit.js";
 
 // Structured logger
 class Logger {
@@ -255,7 +255,7 @@ async function findDocsInDir(dirPath: string) {
 }
 
 // Helper function to analyze project context from multi-language package managers
-async function analyzeProjectContext(dirPath: string) {
+export async function analyzeProjectContext(dirPath: string) {
   const commonFiles = [
     // Node.js
     "package.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb",
@@ -532,7 +532,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
         {
           name: "search_docs",
-          description: "Searches for a pattern within documentation files (README, docs/**/*.md) in a local directory. Returns matching lines with context.",
+          description: "Searches for a pattern within documentation files (README, docs/**/*.md) in a local directory. Returns matching lines with file path and line number.",
           inputSchema: {
             type: "object",
             properties: {
@@ -546,10 +546,48 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               },
               filePattern: {
                 type: "string",
-                description: "Optional. Regex pattern to filter which documentation files to search (e.g., 'README.*' to only search README files).",
+                description: "Optional. Regex pattern to filter which documentation files to search (e.g., 'README.*').",
               },
             },
             required: ["dirPath", "pattern"],
+          },
+        },
+        {
+          name: "audit_code_quality",
+          description: "Performs an enterprise-grade code quality audit. Analyzes tech stack, conventions, and applies industry best practices to detect issues like dead code, god classes, SOC violations, and more.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              dirPath: {
+                type: "string",
+                description: "The absolute path to the local directory to audit.",
+              },
+              filePatterns: {
+                type: "array",
+                items: { type: "string" },
+                description: "Optional. Array of glob patterns to specify which files to audit (e.g., ['src/**/*.tsx']).",
+              },
+              focusAreas: {
+                type: "array",
+                items: { type: "string" },
+                description: "Optional. Focus audit on specific areas: 'dead_code', 'structure', 'performance', 'naming', 'all'.",
+              },
+            },
+            required: ["dirPath"],
+          },
+        },
+        {
+          name: "get_audit_prompt",
+          description: "Generates an interactive prompt to ask the user what they want to audit. Helps guide the audit process by showing detected tech stack and options.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              dirPath: {
+                type: "string",
+                description: "The absolute path to the local directory.",
+              },
+            },
+            required: ["dirPath"],
           },
         },
       ],
@@ -998,6 +1036,95 @@ case "explore_remote_repo": {
             {
               type: "text",
               text: `Error searching docs: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "audit_code_quality": {
+      const { dirPath: rawPath, filePatterns, focusAreas } = request.params.arguments as {
+        dirPath: string;
+        filePatterns?: string[];
+        focusAreas?: string[];
+      };
+
+      try {
+        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+        
+        const release = await operationLimiter.acquire();
+        try {
+          logger.info("Starting code quality audit", { dirPath, filePatterns, focusAreas });
+          
+          const report: AuditReport = await performAudit(dirPath, filePatterns);
+          
+          logger.info("Audit completed", { 
+            filesScanned: report.summary.filesScanned,
+            totalFindings: report.summary.totalFindings 
+          });
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    message: `Audit completed: ${report.summary.totalFindings} findings across ${report.summary.filesScanned} files.`,
+                    summary: report.summary,
+                    techStack: Object.keys(report.techStack),
+                    conventions: report.conventions,
+                    bestPracticesApplied: report.bestPracticesApplied,
+                    findings: report.findings, // Limited to 100 in performAudit
+                    recommendations: report.recommendations,
+                    note: report.findings.length >= 100 ? "Results limited to 100 findings. There may be more issues." : undefined,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } finally {
+          release();
+        }
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error during audit: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "get_audit_prompt": {
+      const { dirPath: rawPath } = request.params.arguments as { dirPath: string };
+
+      try {
+        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+        
+        // Analyze tech stack for the prompt
+        const techStack = await analyzeProjectContext(dirPath);
+        const prompt = generateAuditPrompt(dirPath, techStack);
+        
+        return {
+          content: [
+            {
+              type: "text",
+              text: prompt,
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error generating audit prompt: ${error.message}`,
             },
           ],
           isError: true,

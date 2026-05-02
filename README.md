@@ -87,6 +87,43 @@ Add the following to your `claude_desktop_config.json`:
       - `pattern` (string): The regex pattern to search for in documentation files.
       - `filePattern` (string, optional): Regex pattern to filter which documentation files to search (e.g., 'README.*').
 
+10. `audit_code_quality`
+    - **Description**: Performs an enterprise-grade code quality audit. Analyzes tech stack, conventions, and applies industry best practices to detect issues like dead code, god classes, SOC violations, naming conventions, and more.
+    - **Arguments**:
+      - `dirPath` (string): The absolute path to the local directory to audit.
+      - `filePatterns` (array of strings, optional): Array of glob patterns to specify which files to audit (e.g., ['src/**/*.tsx']).
+      - `focusAreas` (array of strings, optional): Focus audit on specific areas: 'dead_code', 'structure', 'performance', 'naming', 'all'.
+
+11. `get_audit_prompt`
+    - **Description**: Generates an interactive prompt to ask the user what they want to audit. Helps guide the audit process by showing detected tech stack and available options.
+    - **Arguments**:
+      - `dirPath` (string): The absolute path to the local directory.
+
+## Enterprise-Grade Code Quality Audit
+
+The `audit_code_quality` tool provides comprehensive code analysis:
+
+### What It Checks
+- **Dead Code**: Unused imports, variables, functions
+- **Code Structure**: God classes/functions, file size violations
+- **Performance**: React performance anti-patterns, unnecessary re-renders
+- **Naming Conventions**: PEP 8 (Python), PascalCase (React components), etc.
+- **Framework Best Practices**: Next.js App Router, data fetching patterns
+- **Standards Compliance**: SOC (Separation of Concerns), DRY, SOLID principles
+
+### Best Practices Included
+- **Generic**: Applicable to all codebases
+- **Next.js**: App Router, Server/Client Components, data fetching
+- **React**: Component structure, performance optimization
+- **Python**: PEP 8 compliance
+- **Tech Stack Specific**: Based on detected package managers and frameworks
+
+### Audit Workflow
+1. Use `get_audit_prompt` to see what can be audited
+2. Run `audit_code_quality` with optional focus areas
+3. Review the report with findings and recommendations
+4. Apply fixes using AI agents with the detailed suggestions provided
+
 ## Local Development
 
 1. Clone the repository.
