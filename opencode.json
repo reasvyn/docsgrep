@@ -3,12 +3,8 @@
     "mcp": {
         "docsgrep": {
             "type": "local",
-            "enabled": true,
-            "command": [
-                "npx",
-                "-y",
-                "docsgrep"
-            ]
+            "command": ["node", "src/index"],
+            "enabled": true
         }
     }
 }

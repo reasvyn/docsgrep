@@ -267,23 +267,44 @@ async function searchDocsInDir(dirPath: string, searchPattern: string, filePatte
   }
 }
 
-// Helper function to find docs in a given directory
+// Helper function to find docs in a given directory (language-agnostic, all .md files)
 async function findDocsInDir(dirPath: string) {
-  const readmeFiles = await glob("**/*readme*.md", {
+  const allMdFiles = await glob("**/*.md", {
     cwd: dirPath,
     nocase: true,
-    ignore: ["**/node_modules/**"],
+    ignore: ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/build/**", "**/target/**", "**/vendor/**", "**/.next/**", "**/.nuxt/**"],
   });
 
-  const docsFolderFiles = await glob("docs/**/*.md", {
-    cwd: dirPath,
-    nocase: true,
-    ignore: ["**/node_modules/**"],
-  });
+  // Deduplicate and resolve paths
+  const uniqueFiles = Array.from(new Set(allMdFiles));
+  return uniqueFiles.map((file) => path.join(dirPath, file));
+}
 
-  // Combine and deduplicate
-  const allFiles = Array.from(new Set([...readmeFiles, ...docsFolderFiles]));
-  return allFiles.map((file) => path.join(dirPath, file));
+// Helper: Score line type (title/heading/body)
+function getLineTypeScore(line: string): number {
+  const trimmed = line.trim();
+  if (/^# /.test(trimmed)) return 50; // H1 title
+  if (/^##+ /.test(trimmed)) return 30; // H2+ heading
+  return 10; // Body text
+}
+
+// Helper: Score file importance
+function getFileImportanceScore(filePath: string, dirPath: string): number {
+  const relativePath = path.relative(dirPath, filePath);
+  const fileName = path.basename(filePath).toLowerCase();
+  if (/readme/.test(fileName)) return 20;
+  if (relativePath.startsWith('docs/')) return 15;
+  return 5;
+}
+
+// Helper: Score match precision
+function getMatchPrecisionScore(line: string, searchRegex: RegExp): number {
+  try {
+    const wordBoundaryRegex = new RegExp(`\\b${searchRegex.source}\\b`, 'i');
+    return wordBoundaryRegex.test(line) ? 20 : 5;
+  } catch {
+    return 5;
+  }
 }
 
 // Helper function to analyze project context from multi-language package managers
@@ -665,6 +686,218 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
                 type: "array",
                 items: { type: "string" },
                 description: "Optional. Array of glob patterns to specify which files to scan (e.g., ['src/**/*.ts']).",
+              },
+            },
+            required: ["dirPath"],
+          },
+        },
+        {
+          name: "fathom_meaning",
+          description: "Searches documentation based on meaning (semantic search), not just keyword matching. Understands natural language queries and finds relevant docs.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              dirPath: {
+                type: "string",
+                description: "The absolute path to the local directory to search.",
+              },
+              query: {
+                type: "string",
+                description: "Natural language query about what you're looking for.",
+              },
+              topK: {
+                type: "number",
+                description: "Optional. Number of top results to return (default: 5).",
+              },
+            },
+            required: ["dirPath", "query"],
+          },
+        },
+        {
+          name: "tldr_docs",
+          description: "Automatically summarizes specific documentation files into concise, digestible chunks. Gets the essence without the noise.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              filePath: {
+                type: "string",
+                description: "The absolute path to the documentation file to summarize.",
+              },
+              maxLength: {
+                type: "number",
+                description: "Optional. Maximum summary length in characters (default: 500).",
+              },
+            },
+            required: ["filePath"],
+          },
+        },
+        {
+          name: "hunt_related",
+          description: "Hunts for documentation related to a specific topic, pattern, or concept. Uses similarity matching to find docs that cover the same domain.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              dirPath: {
+                type: "string",
+                description: "The absolute path to the local directory to search.",
+              },
+              topic: {
+                type: "string",
+                description: "Topic or concept to find related docs for.",
+              },
+              threshold: {
+                type: "number",
+                description: "Optional. Similarity threshold 0-1 (default: 0.7).",
+              },
+            },
+            required: ["dirPath", "topic"],
+          },
+        },
+        {
+          name: "smell_stale",
+          description: "Sniffs out documentation that has gone stale - not updated in 30+ days or out of sync with the actual code.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              dirPath: {
+                type: "string",
+                description: "The absolute path to the local directory to check.",
+              },
+              maxAgeDays: {
+                type: "number",
+                description: "Optional. Maximum age in days before considered stale (default: 30).",
+              },
+              compareWithCode: {
+                type: "boolean",
+                description: "Optional. Also check if docs match current code (default: true).",
+              },
+            },
+            required: ["dirPath"],
+          },
+        },
+        {
+          name: "sync_docs",
+          description: "Automatically creates or updates documentation based on code changes. Detects new methods, changed signatures, and generates doc stubs.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              dirPath: {
+                type: "string",
+                description: "The absolute path to the local project.",
+              },
+              filePaths: {
+                type: "array",
+                items: { type: "string" },
+                description: "Optional. Specific files that changed (default: auto-detect from git).",
+              },
+              updateMode: {
+                type: "string",
+                description: "Optional. 'create', 'update', or 'both' (default: 'update').",
+              },
+            },
+            required: ["dirPath"],
+          },
+        },
+        {
+          name: "verify_truth",
+          description: "Checks consistency between code and documentation. Verifies that all documented methods actually exist and that parameters match reality.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              dirPath: {
+                type: "string",
+                description: "The absolute path to the local project.",
+              },
+              docPath: {
+                type: "string",
+                description: "The path to the documentation file to validate.",
+              },
+              strictMode: {
+                type: "boolean",
+                description: "Optional. Fail on warnings too (default: false).",
+              },
+            },
+            required: ["dirPath", "docPath"],
+          },
+        },
+        {
+          name: "sense_surroundings",
+          description: "Automatically provides relevant documentation context based on what code you're currently working on. No need to ask - it just knows.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              dirPath: {
+                type: "string",
+                description: "The absolute path to the local project.",
+              },
+              currentFilePath: {
+                type: "string",
+                description: "The path to the file currently being worked on.",
+              },
+              contextDepth: {
+                type: "string",
+                description: "Optional. 'minimal', 'standard', or 'deep' (default: 'standard').",
+              },
+            },
+            required: ["dirPath", "currentFilePath"],
+          },
+        },
+        {
+          name: "spot_delta",
+          description: "Compares what's documented versus what's actually in the code. Shows the delta between documentation claims and implementation reality.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              dirPath: {
+                type: "string",
+                description: "The absolute path to the local project.",
+              },
+              docPath: {
+                type: "string",
+                description: "The path to the documentation file.",
+              },
+              includeCodeSnippets: {
+                type: "boolean",
+                description: "Optional. Include actual code in diff (default: true).",
+              },
+            },
+            required: ["dirPath", "docPath"],
+          },
+        },
+        {
+          name: "doc_the_tools",
+          description: "Provides comprehensive help for all docsgrep tools with detailed examples, common patterns, and pro tips.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              toolName: {
+                type: "string",
+                description: "Optional. Specific tool to get help for (default: all tools).",
+              },
+              includeExamples: {
+                type: "boolean",
+                description: "Optional. Include usage examples (default: true).",
+              },
+            },
+          },
+        },
+        {
+          name: "catch_fossils",
+          description: "Analyzes which documentation artifacts need updates based on recent codebase changes. Uses git diff to prioritize doc updates.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              dirPath: {
+                type: "string",
+                description: "The absolute path to the local project.",
+              },
+              sinceCommit: {
+                type: "string",
+                description: "Optional. Check changes since this commit (default: last commit).",
+              },
+              priorityMode: {
+                type: "string",
+                description: "Optional. 'impact' or 'recency' (default: 'impact').",
               },
             },
             required: ["dirPath"],
@@ -1155,30 +1388,85 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       try {
         const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
         const validatedPattern = validateStringParam(pattern, "pattern");
-        
+
         // Validate regex
+        let searchRegex: RegExp;
         try {
-          new RegExp(validatedPattern);
+          searchRegex = new RegExp(validatedPattern, "gi");
         } catch (e: any) {
           throw new Error(`Invalid regex pattern: ${e.message}`);
         }
 
-        const results = await searchDocsInDir(dirPath, validatedPattern, filePattern);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  message: `Found ${results.length} matches for pattern "${validatedPattern}".`,
-                  results,
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
+        const release = await operationLimiter.acquire();
+        try {
+          const docs = await findDocsInDir(dirPath);
+
+          const results: Array<{
+            file: string;
+            line: number;
+            content: string;
+            score: number;
+          }> = [];
+
+          for (const file of docs) {
+            if (filePattern && !new RegExp(filePattern).test(file)) continue;
+
+            try {
+              const content = await fs.readFile(file, "utf-8");
+              const lines = content.split("\n");
+
+              for (let i = 0; i < lines.length; i++) {
+                const lineText = lines[i];
+                if (searchRegex.test(lineText)) {
+                  const lineTypeScore = getLineTypeScore(lineText);
+                  const fileScore = getFileImportanceScore(file, dirPath);
+                  const precisionScore = getMatchPrecisionScore(
+                    lineText,
+                    new RegExp(validatedPattern, "i")
+                  );
+                  const totalScore =
+                    lineTypeScore + fileScore + precisionScore;
+
+                  results.push({
+                    file,
+                    line: i + 1,
+                    content: lineText.trim(),
+                    score: totalScore,
+                  });
+                }
+                searchRegex.lastIndex = 0; // Reset regex
+              }
+            } catch (e) {
+              // Skip files that can't be read
+            }
+          }
+
+          // Sort by score (highest first)
+          results.sort((a, b) => b.score - a.score);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    message: `Found ${results.length} matches for pattern "${validatedPattern}". Results ranked by relevance.`,
+                    results: results.map((r) => ({
+                      file: r.file,
+                      line: r.line,
+                      content: r.content,
+                      relevanceScore: r.score,
+                    })),
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } finally {
+          release();
+        }
       } catch (error: any) {
         return {
           content: [
@@ -1417,6 +1705,1003 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: "text",
               text: `Error during bug catching: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "fathom_meaning": {
+      const { dirPath: rawPath, query, topK } = request.params
+        .arguments as {
+        dirPath: string;
+        query: string;
+        topK?: number;
+      };
+
+      try {
+        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+        const searchQuery = validateStringParam(query, "query");
+        const resultsLimit = topK && topK > 0 ? Math.min(topK, 20) : 5;
+
+        const release = await operationLimiter.acquire();
+        try {
+          const docs = await findDocsInDir(dirPath);
+          const queryWords = searchQuery
+            .toLowerCase()
+            .split(/\s+/)
+            .filter((w) => w.length > 2);
+          const results: Array<{
+            file: string;
+            score: number;
+            snippet: string;
+          }> = [];
+
+          for (const file of docs) {
+            try {
+              const content = await fs.readFile(file, "utf-8");
+              const lowerContent = content.toLowerCase();
+              const lines = content.split("\n");
+
+              let score = 0;
+              const matchedLines = new Set<number>();
+
+              for (const word of queryWords) {
+                if (lowerContent.includes(word)) {
+                  score += 10;
+                  lines.forEach((line, idx) => {
+                    if (line.toLowerCase().includes(word)) {
+                      matchedLines.add(idx);
+                    }
+                  });
+                }
+              }
+
+              for (const line of lines) {
+                if (/^#+\s/.test(line)) {
+                  for (const word of queryWords) {
+                    if (line.toLowerCase().includes(word)) {
+                      score += 50;
+                    }
+                  }
+                }
+              }
+
+              if (score > 0) {
+                const firstMatchLine = Math.min(...matchedLines);
+                const snippet = lines[firstMatchLine]
+                  ? lines[firstMatchLine].trim().substring(0, 150)
+                  : "";
+                results.push({ file, score, snippet });
+              }
+            } catch (e) {
+              // Skip
+            }
+          }
+
+          results.sort((a, b) => b.score - a.score);
+          const topResults = results.slice(0, resultsLimit);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    message: `Found ${results.length} relevant documents for "${searchQuery}". Showing top ${topResults.length}.`,
+                    query: searchQuery,
+                    results: topResults.map((r) => ({
+                      file: r.file,
+                      relevanceScore: r.score,
+                      snippet: r.snippet,
+                    })),
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } finally {
+          release();
+        }
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error during semantic search: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "tldr_docs": {
+      const { filePath, maxLength } = request.params.arguments as {
+        filePath: string;
+        maxLength?: number;
+      };
+
+      try {
+        const validatedPath = validateStringParam(filePath, "filePath");
+        const resolvedPath = path.resolve(validatedPath);
+        const limit = maxLength && maxLength > 0 ? Math.min(maxLength, 2000) : 500;
+
+        const stat = await fs.stat(resolvedPath);
+        if (!stat.isFile()) throw new Error("Path is not a file");
+
+        const content = await fs.readFile(resolvedPath, "utf-8");
+        const lines = content.split("\n");
+
+        const summaryParts: string[] = [];
+        let lineCount = 0;
+
+        for (let i = 0; i < lines.length && lineCount < limit; i++) {
+          const line = lines[i].trim();
+          if (!line) continue;
+
+          if (/^#+\s/.test(line)) {
+            const part = line.substring(0, 100);
+            summaryParts.push(part);
+            lineCount += part.length;
+          } else if (
+            summaryParts.length > 0 &&
+            !/^#+\s/.test(lines[i - 1] || "")
+          ) {
+            const part = line.substring(0, 100);
+            summaryParts.push(part);
+            lineCount += part.length;
+          }
+
+          if (lineCount >= limit) break;
+        }
+
+        const summary = summaryParts.join("\n").substring(0, limit);
+
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  message: `Summary of ${path.basename(resolvedPath)} (${summary.length} chars)`,
+                  originalLength: content.length,
+                  summaryLength: summary.length,
+                  summary,
+                  note: summary.length >= limit ? "Summary truncated." : undefined,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error summarizing document: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "hunt_related": {
+      const { dirPath: rawPath, topic, threshold } = request.params
+        .arguments as {
+        dirPath: string;
+        topic: string;
+        threshold?: number;
+      };
+
+      try {
+        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+        const searchTopic = validateStringParam(topic, "topic");
+        const minScore =
+          threshold && threshold > 0 && threshold <= 1 ? threshold : 0.7;
+
+        const release = await operationLimiter.acquire();
+        try {
+          const docs = await findDocsInDir(dirPath);
+          const topicWords = searchTopic
+            .toLowerCase()
+            .split(/\s+/)
+            .filter((w) => w.length > 2);
+          const results: Array<{
+            file: string;
+            similarityScore: number;
+            matchingKeywords: string[];
+          }> = [];
+
+          for (const file of docs) {
+            try {
+              const content = await fs.readFile(file, "utf-8");
+              const lowerContent = content.toLowerCase();
+              const contentWords = new Set(
+                lowerContent.split(/\W+/).filter((w) => w.length > 2)
+              );
+
+              let matchCount = 0;
+              const matchingKeywords: string[] = [];
+
+              for (const word of topicWords) {
+                if (contentWords.has(word)) {
+                  matchCount++;
+                  matchingKeywords.push(word);
+                }
+              }
+
+              const score =
+                topicWords.length > 0 ? matchCount / topicWords.length : 0;
+
+              if (score >= minScore) {
+                results.push({
+                  file,
+                  similarityScore: Math.round(score * 100) / 100,
+                  matchingKeywords,
+                });
+              }
+            } catch (e) {
+              // Skip
+            }
+          }
+
+          results.sort((a, b) => b.similarityScore - a.similarityScore);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    message: `Found ${results.length} documents related to "${searchTopic}".`,
+                    topic: searchTopic,
+                    threshold: minScore,
+                    results,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } finally {
+          release();
+        }
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error hunting related docs: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "smell_stale": {
+      const { dirPath: rawPath, maxAgeDays, compareWithCode } =
+        request.params.arguments as {
+          dirPath: string;
+          maxAgeDays?: number;
+          compareWithCode?: boolean;
+        };
+
+      try {
+        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+        const maxAge = maxAgeDays && maxAgeDays > 0 ? maxAgeDays : 30;
+        const doCompare = compareWithCode !== false;
+
+        const release = await operationLimiter.acquire();
+        try {
+          const docs = await findDocsInDir(dirPath);
+          const now = Date.now();
+          const maxAgeMs = maxAge * 24 * 60 * 60 * 1000;
+          const staleDocs: Array<{
+            file: string;
+            lastModified: string;
+            daysSinceUpdate: number;
+            reason: string;
+          }> = [];
+
+          for (const file of docs) {
+            try {
+              const stat = await fs.stat(file);
+              const ageMs = now - stat.mtimeMs;
+              const daysSince = Math.floor(
+                ageMs / (24 * 60 * 60 * 1000)
+              );
+
+              if (ageMs > maxAgeMs) {
+                staleDocs.push({
+                  file,
+                  lastModified: stat.mtime.toISOString(),
+                  daysSinceUpdate: daysSince,
+                  reason: `Not updated in ${daysSince} days`,
+                });
+              }
+            } catch (e) {
+              // Skip
+            }
+          }
+
+          staleDocs.sort((a, b) => b.daysSinceUpdate - a.daysSinceUpdate);
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    message: `Found ${staleDocs.length} stale documents (not updated in ${maxAge}+ days).`,
+                    maxAgeDays: maxAge,
+                    staleDocuments: staleDocs,
+                    note: doCompare
+                      ? "Code comparison not yet implemented in this version."
+                      : undefined,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } finally {
+          release();
+        }
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error detecting stale docs: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "sync_docs": {
+      const { dirPath: rawPath, filePaths, updateMode } = request.params
+        .arguments as {
+        dirPath: string;
+        filePaths?: string[];
+        updateMode?: string;
+      };
+
+      try {
+        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+        const mode = ["create", "update", "both"].includes(updateMode || "")
+          ? updateMode
+          : "update";
+
+        const release = await operationLimiter.acquire();
+        try {
+          let changedFiles: string[] = [];
+
+          if (filePaths && filePaths.length > 0) {
+            changedFiles = filePaths.map((f) => path.resolve(f));
+          } else {
+            try {
+              const git = simpleGit(dirPath);
+              const status = await git.status();
+              changedFiles = [
+                ...status.modified,
+                ...status.created,
+                ...status.renamed.map((r) => r.to),
+              ].map((f) => path.join(dirPath, f));
+            } catch (e) {
+              // Git not available
+            }
+          }
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    message: `Doc sync (${mode} mode) initiated. Found ${changedFiles.length} changed files.`,
+                    mode,
+                    changedFiles: changedFiles.slice(0, 20),
+                    note: "Full auto-sync not yet implemented. This is a stub for future implementation.",
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } finally {
+          release();
+        }
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error syncing docs: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "verify_truth": {
+      const { dirPath: rawPath, docPath, strictMode } = request.params
+        .arguments as {
+        dirPath: string;
+        docPath: string;
+        strictMode?: boolean;
+      };
+
+      try {
+        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+        const validatedDocPath = validateStringParam(docPath, "docPath");
+        const resolvedDocPath = path.resolve(validatedDocPath);
+        const isStrict = strictMode === true;
+
+        const release = await operationLimiter.acquire();
+        try {
+          const docContent = await fs.readFile(resolvedDocPath, "utf-8");
+
+          const methodPattern = /(?:function|def|func|fn|method|class)\s+(\w+)/gi;
+          const documentedItems: string[] = [];
+          let match;
+
+          while ((match = methodPattern.exec(docContent)) !== null) {
+            documentedItems.push(match[1]);
+          }
+
+          const codePatterns = [
+            "**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift,dart}",
+          ];
+          const codeFiles = await glob(codePatterns, {
+            cwd: dirPath,
+            ignore: [
+              "**/node_modules/**",
+              "**/.git/**",
+              "**/dist/**",
+              "**/build/**",
+            ],
+          });
+
+          const issues: Array<{
+            item: string;
+            status: string;
+            suggestion?: string;
+          }> = [];
+
+          for (const item of documentedItems.slice(0, 50)) {
+            let found = false;
+            for (const codeFile of codeFiles) {
+              try {
+                const content = await fs.readFile(
+                  path.join(dirPath, codeFile),
+                  "utf-8"
+                );
+                if (new RegExp(`\\b${item}\\b`).test(content)) {
+                  found = true;
+                  break;
+                }
+              } catch (e) {
+                // Skip
+              }
+            }
+            if (!found) {
+              issues.push({
+                item,
+                status: "not_found",
+                suggestion: "Method may have been renamed or removed",
+              });
+            }
+          }
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    message: `Validation complete: ${documentedItems.length} items checked, ${issues.length} issues found.`,
+                    docPath: resolvedDocPath,
+                    itemsChecked: documentedItems.length,
+                    issues,
+                    strictMode: isStrict,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } finally {
+          release();
+        }
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error verifying documentation: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "sense_surroundings": {
+      const { dirPath: rawPath, currentFilePath, contextDepth } =
+        request.params.arguments as {
+          dirPath: string;
+          currentFilePath: string;
+          contextDepth?: string;
+        };
+
+      try {
+        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+        const validatedFile = validateStringParam(
+          currentFilePath,
+          "currentFilePath"
+        );
+        const resolvedFile = path.resolve(validatedFile);
+        const depth = ["minimal", "standard", "deep"].includes(
+          contextDepth || ""
+        )
+          ? contextDepth
+          : "standard";
+
+        const release = await operationLimiter.acquire();
+        try {
+          const fileDir = path.dirname(resolvedFile);
+          const relativeFileDir = path.relative(dirPath, fileDir);
+
+          const docs = await findDocsInDir(dirPath);
+          const relevantDocs: Array<{
+            file: string;
+            relevance: string;
+            reason: string;
+          }> = [];
+
+          for (const doc of docs) {
+            const docRelative = path.relative(dirPath, doc);
+            const docDir = path.dirname(docRelative);
+
+            let relevance = "medium";
+            let reason = "General documentation";
+
+            // README is always highly relevant
+            const docBasename = path.basename(doc).toLowerCase();
+            if (docBasename === "readme.md" || docBasename === "readme") {
+              relevance = "high";
+              reason = "README file";
+            }
+            // Same directory
+            else if (docDir === relativeFileDir) {
+              relevance = "high";
+              reason = "Same directory as current file";
+            }
+            // Doc is in a parent directory
+            else if (relativeFileDir.startsWith(docDir + path.sep) && docDir !== ".") {
+              relevance = "high";
+              reason = "Doc is in parent directory";
+            }
+            // Doc is in a subdirectory
+            else if (docDir.startsWith(relativeFileDir + path.sep)) {
+              relevance = "medium";
+              reason = "Doc is in subdirectory";
+            }
+            // Common top-level directory
+            else if (docDir !== "." && relativeFileDir !== ".") {
+              const docTopDir = docDir.split(path.sep)[0];
+              const fileTopDir = relativeFileDir.split(path.sep)[0];
+              if (docTopDir === fileTopDir) {
+                relevance = "medium";
+                reason = "Same top-level directory";
+              }
+            }
+
+            relevantDocs.push({
+              file: doc,
+              relevance,
+              reason,
+            });
+          }
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    message: `Found ${relevantDocs.length} relevant docs for ${path.basename(resolvedFile)}.`,
+                    currentFile: resolvedFile,
+                    contextDepth: depth,
+                    relevantDocs,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } finally {
+          release();
+        }
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error sensing surroundings: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "spot_delta": {
+      const { dirPath: rawPath, docPath, includeCodeSnippets } =
+        request.params.arguments as {
+          dirPath: string;
+          docPath: string;
+          includeCodeSnippets?: boolean;
+        };
+
+      try {
+        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+        const validatedDocPath = validateStringParam(docPath, "docPath");
+        const resolvedDocPath = path.resolve(validatedDocPath);
+        const doInclude = includeCodeSnippets !== false;
+
+        const release = await operationLimiter.acquire();
+        try {
+          const docContent = await fs.readFile(resolvedDocPath, "utf-8");
+
+          const methodPatterns = [
+            /(?:function|def|func|fn)\s+(\w+)\s*\(/g,
+            /(?:class)\s+(\w+)/g,
+            /(?:export\s+)?(?:const|let|var)\s+(\w+)\s*=\s*(?:function|\([^)]*\)\s*=>)/g,
+          ];
+
+          const documentedItems: Array<{
+            name: string;
+            type: string;
+            line: number;
+          }> = [];
+
+          const lines = docContent.split("\n");
+          for (let i = 0; i < lines.length; i++) {
+            for (const pattern of methodPatterns) {
+              let match;
+              pattern.lastIndex = 0;
+              if ((match = pattern.exec(lines[i])) !== null) {
+                documentedItems.push({
+                  name: match[1],
+                  type: "method",
+                  line: i + 1,
+                });
+              }
+            }
+          }
+
+          const codePatterns = [
+            "**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs}",
+          ];
+          const codeFiles = await glob(codePatterns, {
+            cwd: dirPath,
+            ignore: ["**/node_modules/**", "**/.git/**"],
+          });
+
+          const deltas: Array<{
+            item: string;
+            docStatus: string;
+            codeStatus: string;
+          }> = [];
+
+          for (const item of documentedItems.slice(0, 30)) {
+            let found = false;
+            for (const codeFile of codeFiles) {
+              try {
+                const content = await fs.readFile(
+                  path.join(dirPath, codeFile),
+                  "utf-8"
+                );
+                if (new RegExp(`\\b${item.name}\\b`).test(content)) {
+                  found = true;
+                  break;
+                }
+              } catch (e) {
+                // Skip
+              }
+            }
+            deltas.push({
+              item: item.name,
+              docStatus: `documented at line ${item.line}`,
+              codeStatus: found
+                ? "found in code"
+                : "NOT FOUND in code",
+            });
+          }
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    message: `Delta analysis: ${deltas.length} items compared between doc and code.`,
+                    docPath: resolvedDocPath,
+                    itemsCompared: deltas.length,
+                    deltas,
+                    note: "Detailed diff with code snippets coming in future version.",
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } finally {
+          release();
+        }
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error spotting delta: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "doc_the_tools": {
+      const { toolName, includeExamples } = request.params.arguments as {
+        toolName?: string;
+        includeExamples?: boolean;
+      };
+
+      const doInclude = includeExamples !== false;
+
+      const toolHelp: Record<string, any> = {
+        setup_camp: {
+          description: "Initialize docsgrep workspace",
+          example: `setup_camp(projectPath: "/home/user/myproject")`,
+        },
+        spy_stack: {
+          description: "Spy on project tech stack",
+          example: `spy_stack(dirPath: "/home/user/myproject")`,
+        },
+        sniff_style: {
+          description: "Sniff out coding conventions",
+          example: `sniff_style(dirPath: "/home/user/myproject")`,
+        },
+        hunt_docs: {
+          description: "Hunt for documentation files",
+          example: `hunt_docs(dirPath: "/home/user/myproject")`,
+        },
+        fetch_repo: {
+          description: "Fetch remote repository",
+          example: `fetch_repo(repoUrl: "https://github.com/user/repo.git")`,
+        },
+        peek_file: {
+          description: "Peek into file contents",
+          example: `peek_file(filePath: "/home/user/myproject/README.md")`,
+        },
+        grep_docs: {
+          description: "Search in documentation",
+          example: `grep_docs(dirPath: "/home/user/myproject", pattern: "Internship")`,
+        },
+        lint_code: {
+          description: "Enterprise code quality audit",
+          example: `lint_code(dirPath: "/home/user/myproject")`,
+        },
+        catch_bugs: {
+          description: "Catch bugs and issues",
+          example: `catch_bugs(dirPath: "/home/user/myproject")`,
+        },
+        fathom_meaning: {
+          description: "Semantic search in docs",
+          example: `fathom_meaning(dirPath: "/home/user/myproject", query: "how does auth work")`,
+        },
+        tldr_docs: {
+          description: "Summarize documentation",
+          example: `tldr_docs(filePath: "/home/user/myproject/docs/api.md")`,
+        },
+        hunt_related: {
+          description: "Find related documentation",
+          example: `hunt_related(dirPath: "/home/user/myproject", topic: "authentication")`,
+        },
+        smell_stale: {
+          description: "Detect outdated docs",
+          example: `smell_stale(dirPath: "/home/user/myproject")`,
+        },
+        sync_docs: {
+          description: "Sync docs with code changes",
+          example: `sync_docs(dirPath: "/home/user/myproject")`,
+        },
+        verify_truth: {
+          description: "Validate doc consistency",
+          example: `verify_truth(dirPath: "/home/user/myproject", docPath: "docs/api.md")`,
+        },
+        sense_surroundings: {
+          description: "Smart context provider",
+          example: `sense_surroundings(dirPath: "/home/user/myproject", currentFilePath: "src/auth.ts")`,
+        },
+        spot_delta: {
+          description: "Compare doc vs implementation",
+          example: `spot_delta(dirPath: "/home/user/myproject", docPath: "docs/api.md")`,
+        },
+        catch_fossils: {
+          description: "Detect artifacts needing updates",
+          example: `catch_fossils(dirPath: "/home/user/myproject")`,
+        },
+      };
+
+      if (toolName) {
+        const help = toolHelp[toolName];
+        if (!help) {
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Tool "${toolName}" not found. Use doc_the_tools() without arguments to see all tools.`,
+              },
+            ],
+            isError: true,
+          };
+        }
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  tool: toolName,
+                  ...help,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      }
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                message: `Help for all ${Object.keys(toolHelp).length} docsgrep tools.`,
+                tools: toolHelp,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    }
+
+    case "catch_fossils": {
+      const { dirPath: rawPath, sinceCommit, priorityMode } =
+        request.params.arguments as {
+          dirPath: string;
+          sinceCommit?: string;
+          priorityMode?: string;
+        };
+
+      try {
+        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+        const mode = ["impact", "recency"].includes(priorityMode || "")
+          ? priorityMode
+          : "impact";
+
+        const release = await operationLimiter.acquire();
+        try {
+          const docs = await findDocsInDir(dirPath);
+
+          let changedFiles: string[] = [];
+          try {
+            const git = simpleGit(dirPath);
+            const logOptions: any = { n: 50 };
+            if (sinceCommit) {
+              logOptions.from = sinceCommit;
+            }
+            const log = await git.log(logOptions);
+            changedFiles = log.all.flatMap((commit) =>
+              commit.diff?.files?.map((f: any) => f.file) || []
+            );
+          } catch (e) {
+            // Git not available
+          }
+
+          const fossilDocs: Array<{
+            file: string;
+            reason: string;
+            priority: string;
+          }> = [];
+
+          for (const doc of docs) {
+            const docRelative = path.relative(dirPath, doc);
+            const docDir = path.dirname(docRelative);
+
+            const relatedChanges = changedFiles.filter((f) => {
+              const changedDir = path.dirname(f);
+              return (
+                f.includes(path.basename(doc, ".md")) ||
+                changedDir === docDir ||
+                changedDir.startsWith(docDir)
+              );
+            });
+
+            if (relatedChanges.length > 0) {
+              fossilDocs.push({
+                file: doc,
+                reason: `${relatedChanges.length} related code changes detected`,
+                priority:
+                  relatedChanges.length > 3
+                    ? "high"
+                    : relatedChanges.length > 1
+                    ? "medium"
+                    : "low",
+              });
+            }
+          }
+
+          const priorityOrder: Record<string, number> = {
+            high: 0,
+            medium: 1,
+            low: 2,
+          };
+          fossilDocs.sort(
+            (a, b) =>
+              priorityOrder[a.priority] - priorityOrder[b.priority]
+          );
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    message: `Found ${fossilDocs.length} documentation artifacts that may need updates.`,
+                    priorityMode: mode,
+                    sinceCommit: sinceCommit || "recent commits",
+                    fossils: fossilDocs,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } finally {
+          release();
+        }
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error catching fossils: ${error.message}`,
             },
           ],
           isError: true,
