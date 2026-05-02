@@ -20,6 +20,7 @@ import { fileURLToPath } from "node:url";
 import { performUniversalAudit as performAudit, generateUniversalAuditPrompt as generateAuditPrompt, type AuditReport } from "./best-practices.js";
 import { getAuditPrompt } from "./audit.js";
 import { performSecurityAudit, generateSecurityAuditPrompt, type SecurityAuditReport } from "./security-audit.js";
+import { catchBugs, type BugReport } from "./bug-catcher.js";
 
 // Structured logger
 class Logger {
@@ -664,9 +665,28 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             required: ["dirPath"],
           },
         },
+        {
+          name: "catch_bugs",
+          description: "Catches bugs, errors, warnings, and potential issues in code: race conditions, memory leaks, runtime errors, dependency coupling, and performance issues with large data handling.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              dirPath: {
+                type: "string",
+                description: "The absolute path to the local directory to analyze.",
+              },
+              filePatterns: {
+                type: "array",
+                items: { type: "string" },
+                description: "Optional. Array of glob patterns to specify which files to scan (e.g., ['src/**/*.ts']).",
+              },
+            },
+            required: ["dirPath"],
+          },
+        },
       ],
-  };
-});
+    };
+  });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   switch (request.params.name) {
@@ -1332,7 +1352,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 
     case "get_security_audit_prompt": {
       const { dirPath: rawPath } = request.params.arguments as { dirPath: string };
-
+      
       try {
         const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
         
@@ -1352,6 +1372,60 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
             {
               type: "text",
               text: `Error generating security audit prompt: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "catch_bugs": {
+      const { dirPath: rawPath, filePatterns } = request.params.arguments as {
+        dirPath: string;
+        filePatterns?: string[];
+      };
+
+      try {
+        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+        
+        const release = await operationLimiter.acquire();
+        try {
+          logger.info("Starting bug catching", { dirPath, filePatterns });
+          
+          const report: BugReport = await catchBugs(dirPath, filePatterns);
+          
+          logger.info("Bug catching completed", { 
+            filesScanned: report.summary.filesScanned,
+            totalIssues: report.summary.totalIssues,
+            riskLevel: report.summary.riskLevel,
+          });
+
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    message: `Bug analysis completed: ${report.summary.totalIssues} issues found. Bug Score: ${report.summary.bugScore}/100 (Risk Level: ${report.summary.riskLevel})`,
+                    summary: report.summary,
+                    categories: report.categories,
+                    recommendations: report.recommendations,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } finally {
+          release();
+        }
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error during bug catching: ${error.message}`,
             },
           ],
           isError: true,
