@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { validateStringParam, validateDirPath } from '../../src/utils/validation.js';
+import { validateStringParam, validateDirPath } from '../../../src/utils/validation.js';
 
 describe('validateStringParam', () => {
   it('should accept valid strings', () => {

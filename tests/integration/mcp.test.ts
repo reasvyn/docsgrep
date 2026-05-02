@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const serverPath = path.join(__dirname, '..', '..', 'build', 'index.js');
+const serverPath = path.join(__dirname, '..', '..', 'src', 'index.ts');
 
 describe('MCP Server Integration', () => {
   let client: Client;
@@ -13,8 +13,11 @@ describe('MCP Server Integration', () => {
 
   beforeAll(async () => {
     transport = new StdioClientTransport({
-      command: 'node',
-      args: [serverPath],
+      command: 'npx',
+      args: [
+        'tsx',
+        serverPath,
+      ],
     });
 
     client = new Client(
@@ -23,7 +26,7 @@ describe('MCP Server Integration', () => {
     );
 
     await client.connect(transport);
-  }, 10000);
+  }, 30000);
 
   afterAll(async () => {
     if (client) {

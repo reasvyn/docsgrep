@@ -6,7 +6,7 @@ import * as fs from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const serverPath = path.join(__dirname, '..', '..', 'build', 'index.js');
+const serverPath = path.join(__dirname, '..', '..', 'src', 'index.ts');
 
 describe('New Tools - Integration Tests', () => {
   let client: Client;
@@ -16,8 +16,11 @@ describe('New Tools - Integration Tests', () => {
 
   beforeAll(async () => {
     transport = new StdioClientTransport({
-      command: 'node',
-      args: [serverPath],
+      command: 'npx',
+      args: [
+        'tsx',
+        serverPath,
+      ],
     });
 
     client = new Client(
@@ -87,7 +90,7 @@ export function logout() {
 }
 `
     );
-  }, 15000);
+  }, 30000);
 
   afterAll(async () => {
     if (client) {
