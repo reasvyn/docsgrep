@@ -21,6 +21,7 @@ import { performUniversalAudit as performAudit, generateUniversalAuditPrompt as 
 import { getAuditPrompt } from "./audit.js";
 import { performSecurityAudit, generateSecurityAuditPrompt, type SecurityAuditReport } from "./security-audit.js";
 import { catchBugs, type BugReport } from "./bug-catcher.js";
+import { analyzeProjectStyle, type ProjectStyleReport } from "./project-style.js";
 
 // Structured logger
 class Logger {
@@ -435,9 +436,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
-        name: "init_workspace",
+        name: "setup_camp",
         description:
-          "Initializes a .docsgrep workspace in the specified project directory to store temporary files, logs, and reports. Also automatically updates the .gitignore file.",
+          "Sets up a docsgrep base camp in the specified project directory to store temporary files, logs, and reports. Also automatically updates the .gitignore file.",
         inputSchema: {
           type: "object",
           properties: {
@@ -450,9 +451,9 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "analyze_project_tech_stack",
+        name: "spy_stack",
         description:
-          "Analyzes a local directory to identify the project's technology stack by reading package manager files (e.g., package.json, composer.json, go.mod, Cargo.toml).",
+          "Spies on the project's technology stack by reading package manager files (e.g., package.json, composer.json, go.mod, Cargo.toml).",
         inputSchema: {
           type: "object",
           properties: {
@@ -465,39 +466,24 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "gather_project_conventions",
+        name: "sniff_style",
         description:
-          "Gathers project conventions, linters, and architectural guidelines (e.g., .eslintrc, phpcs.xml, CONTRIBUTING.md, .editorconfig) to provide context for code quality audits.",
+          "Sniffs out project style: conventions, linters, and infers implicit coding patterns from codebase samples. Combines convention detection and code pattern analysis.",
         inputSchema: {
           type: "object",
           properties: {
             dirPath: {
               type: "string",
-              description: "The absolute path to the local directory to scan for conventions.",
+              description: "The absolute path to the local directory to analyze.",
             },
           },
           required: ["dirPath"],
         },
       },
       {
-        name: "sample_codebase_patterns",
+        name: "hunt_docs",
         description:
-          "Samples a few representative source code files from a local directory. Use this when a project lacks explicit documentation or linter configs to infer implicit coding conventions and style directly from the code.",
-        inputSchema: {
-          type: "object",
-          properties: {
-            dirPath: {
-              type: "string",
-              description: "The absolute path to the local directory to sample.",
-            },
-          },
-          required: ["dirPath"],
-        },
-      },
-      {
-        name: "explore_local_docs",
-        description:
-          "Explores a local directory to find README files and documentation inside docs/ folders.",
+          "Hunts for README files and documentation inside docs/ folders in a local directory.",
         inputSchema: {
           type: "object",
           properties: {
@@ -510,163 +496,163 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
         },
       },
       {
-        name: "explore_remote_repo",
-          description:
-            "Clones a remote git repository to a temporary directory and finds documentation. Supports authentication for private repos.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              repoUrl: {
-                type: "string",
-                description: "The URL of the git repository (e.g., https://github.com/user/repo.git).",
-              },
-              branch: {
-                type: "string",
-                description: "Optional. Specific branch to explore (e.g., 'docs', 'gh-pages', 'v14'). If not provided, explores the default branch.",
-              },
-              localProjectPath: {
-                type: "string",
-                description: "Optional. The absolute path to the local project to use its .docsgrep workspace for storing cloned repositories.",
-              },
-              authToken: {
-                type: "string",
-                description: "Optional. Authentication token for private repositories (GitHub PAT, GitLab token, etc.). For HTTPS URLs, this will be added to the URL.",
-              },
-              sshKeyPath: {
-                type: "string",
-                description: "Optional. Path to SSH private key for authentication. Uses ssh-agent or GIT_SSH_COMMAND.",
-              }
+        name: "fetch_repo",
+        description:
+          "Fetches a remote git repository to a temporary directory and finds documentation. Supports authentication for private repos.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            repoUrl: {
+              type: "string",
+              description: "The URL of the git repository (e.g., https://github.com/user/repo.git).",
             },
-            required: ["repoUrl"],
+            branch: {
+              type: "string",
+              description: "Optional. Specific branch to explore (e.g., 'docs', 'gh-pages', 'v14'). If not provided, explores the default branch.",
+            },
+            localProjectPath: {
+              type: "string",
+              description: "Optional. The absolute path to the local project to use its .docsgrep workspace for storing cloned repositories.",
+            },
+            authToken: {
+              type: "string",
+              description: "Optional. Authentication token for private repositories (GitHub PAT, GitLab token, etc.). For HTTPS URLs, this will be added to the URL.",
+            },
+            sshKeyPath: {
+              type: "string",
+              description: "Optional. Path to SSH private key for authentication. Uses ssh-agent or GIT_SSH_COMMAND.",
+            }
           },
+          required: ["repoUrl"],
+        },
       },
-        {
-          name: "read_doc_file",
-          description: "Reads the contents of a specific documentation or README file.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              filePath: {
-                type: "string",
-                description: "The absolute path to the file to read.",
-              },
+      {
+        name: "peek_file",
+        description: "Peeks into the contents of a specific documentation or README file.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            filePath: {
+              type: "string",
+              description: "The absolute path to the file to read.",
             },
-            required: ["filePath"],
           },
+          required: ["filePath"],
         },
-        {
-          name: "cleanup_cache",
-          description: "Cleans up old cached repositories in the .docsgrep workspace. Removes repos older than the specified max age (default 7 days).",
-          inputSchema: {
-            type: "object",
-            properties: {
-              localProjectPath: {
-                type: "string",
-                description: "The absolute path to the local project containing .docsgrep workspace.",
-              },
-              maxAgeDays: {
-                type: "number",
-                description: "Maximum age in days for cached repos (default: 7).",
-              },
+      },
+      {
+        name: "purge_cache",
+        description: "Purges old cached repositories from the .docsgrep workspace. Removes repos older than the specified max age (default 7 days).",
+        inputSchema: {
+          type: "object",
+          properties: {
+            localProjectPath: {
+              type: "string",
+              description: "The absolute path to the local project containing .docsgrep workspace.",
             },
-            required: ["localProjectPath"],
-          },
-        },
-        {
-          name: "search_docs",
-          description: "Searches for a pattern within documentation files (README, docs/**/*.md) in a local directory. Returns matching lines with file path and line number.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              dirPath: {
-                type: "string",
-                description: "The absolute path to the local directory to search.",
-              },
-              pattern: {
-                type: "string",
-                description: "The regex pattern to search for in documentation files.",
-              },
-              filePattern: {
-                type: "string",
-                description: "Optional. Regex pattern to filter which documentation files to search (e.g., 'README.*').",
-              },
+            maxAgeDays: {
+              type: "number",
+              description: "Maximum age in days for cached repos (default: 7).",
             },
-            required: ["dirPath", "pattern"],
           },
+          required: ["localProjectPath"],
         },
-        {
-          name: "audit_code_quality",
-          description: "Performs an enterprise-grade code quality audit. Analyzes tech stack, conventions, and applies industry best practices to detect issues like dead code, god classes, SOC violations, and more.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              dirPath: {
-                type: "string",
-                description: "The absolute path to the local directory to audit.",
-              },
-              filePatterns: {
-                type: "array",
-                items: { type: "string" },
-                description: "Optional. Array of glob patterns to specify which files to audit (e.g., ['src/**/*.tsx']).",
-              },
-              focusAreas: {
-                type: "array",
-                items: { type: "string" },
-                description: "Optional. Focus audit on specific areas: 'dead_code', 'structure', 'performance', 'naming', 'all'.",
-              },
+      },
+      {
+        name: "grep_docs",
+        description: "Greps for a pattern within documentation files (README, docs/**/*.md) in a local directory. Returns matching lines with file path and line number.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            dirPath: {
+              type: "string",
+              description: "The absolute path to the local directory to search.",
             },
-            required: ["dirPath"],
-          },
-        },
-        {
-          name: "get_audit_prompt",
-          description: "Generates an interactive prompt to ask the user what they want to audit. Helps guide the audit process by showing detected tech stack and available options.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              dirPath: {
-                type: "string",
-                description: "The absolute path to the local directory.",
-              },
+            pattern: {
+              type: "string",
+              description: "The regex pattern to search for in documentation files.",
             },
-            required: ["dirPath"],
-          },
-        },
-        {
-          name: "security_audit",
-          description: "Performs an enterprise-grade security audit covering OWASP Top 10, ISO/IEC 27001, secrets detection, privacy (GDPR/CCPA), and dependency vulnerabilities. Provides comprehensive security analysis with remediation steps.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              dirPath: {
-                type: "string",
-                description: "The absolute path to the local directory to audit.",
-              },
-              filePatterns: {
-                type: "array",
-                items: { type: "string" },
-                description: "Optional. Array of glob patterns to specify which files to scan (e.g., ['**/*.js', '**/*.env']).",
-              },
+            filePattern: {
+              type: "string",
+              description: "Optional. Regex pattern to filter which documentation files to search (e.g., 'README.*').",
             },
-            required: ["dirPath"],
           },
+          required: ["dirPath", "pattern"],
         },
-        {
-          name: "get_security_audit_prompt",
-          description: "Generates an interactive prompt for security auditing. Shows what will be scanned (OWASP Top 10, secrets, privacy, dependencies) and available options.",
-          inputSchema: {
-            type: "object",
-            properties: {
-              dirPath: {
-                type: "string",
-                description: "The absolute path to the local directory.",
-              },
+      },
+      {
+        name: "lint_code",
+        description: "Performs an enterprise-grade code quality audit (linting). Analyzes tech stack, conventions, and applies industry best practices to detect issues like dead code, god classes, SOC violations, and more.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            dirPath: {
+              type: "string",
+              description: "The absolute path to the local directory to audit.",
             },
-            required: ["dirPath"],
+            filePatterns: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Array of glob patterns to specify which files to audit (e.g., ['src/**/*.tsx']).",
+            },
+            focusAreas: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Focus audit on specific areas: 'dead_code', 'structure', 'performance', 'naming', 'all'.",
+            },
           },
+          required: ["dirPath"],
         },
-        {
-          name: "catch_bugs",
+      },
+      {
+        name: "ask_lint",
+        description: "Asks what you want to lint. Generates an interactive prompt showing detected tech stack and available linting options.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            dirPath: {
+              type: "string",
+              description: "The absolute path to the local directory.",
+            },
+          },
+          required: ["dirPath"],
+        },
+      },
+      {
+        name: "guard_security",
+        description: "Guards your code with enterprise-grade security audit covering OWASP Top 10, ISO/IEC 27001, secrets detection, privacy (GDPR/CCPA), and dependency vulnerabilities. Provides comprehensive security analysis with remediation steps.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            dirPath: {
+              type: "string",
+              description: "The absolute path to the local directory to audit.",
+            },
+            filePatterns: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Array of glob patterns to specify which files to scan (e.g., ['**/*.js', '**/*.env']).",
+            },
+          },
+          required: ["dirPath"],
+        },
+      },
+      {
+        name: "ask_guard",
+        description: "Asks before guarding. Shows what will be scanned (OWASP Top 10, secrets, privacy, dependencies) and available options.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            dirPath: {
+              type: "string",
+              description: "The absolute path to the local directory.",
+            },
+          },
+          required: ["dirPath"],
+        },
+      },
+      {
+        name: "catch_bugs",
           description: "Catches bugs, errors, warnings, and potential issues in code: race conditions, memory leaks, runtime errors, dependency coupling, and performance issues with large data handling.",
           inputSchema: {
             type: "object",
@@ -690,30 +676,65 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   switch (request.params.name) {
-    case "init_workspace": {
+    case "setup_camp": {
       const { projectPath: rawPath } = request.params.arguments as { projectPath: string };
-
+      
       try {
         const projectPath = validateDirPath(validateStringParam(rawPath, "projectPath"));
-        const workspacePath = path.join(os.tmpdir(), "docsgrep", path.basename(projectPath));
         
-        await fs.mkdir(path.join(workspacePath, "repos"), { recursive: true });
-        await fs.mkdir(path.join(workspacePath, "logs"), { recursive: true });
-        await fs.mkdir(path.join(workspacePath, "reports"), { recursive: true });
-
+        // Try system temp directory first
+        let workspacePath: string;
+        let usedSystemTemp = false;
+        
+        try {
+          const systemTempPath = path.join(os.tmpdir(), "docsgrep", path.basename(projectPath));
+          await fs.mkdir(path.join(systemTempPath, "repos"), { recursive: true });
+          await fs.mkdir(path.join(systemTempPath, "logs"), { recursive: true });
+          await fs.mkdir(path.join(systemTempPath, "reports"), { recursive: true });
+          workspacePath = systemTempPath;
+          usedSystemTemp = true;
+        } catch (e) {
+          // Fallback to project directory if system temp is not accessible
+          const projectLocalPath = path.join(projectPath, ".docsgrep");
+          await fs.mkdir(path.join(projectLocalPath, "repos"), { recursive: true });
+          await fs.mkdir(path.join(projectLocalPath, "logs"), { recursive: true });
+          await fs.mkdir(path.join(projectLocalPath, "reports"), { recursive: true });
+          workspacePath = projectLocalPath;
+          usedSystemTemp = false;
+        }
+        
         const contextInfo = {
           initializedAt: new Date().toISOString(),
           projectPath: projectPath,
           workspacePath: workspacePath,
-          version: pkg.version
+          version: pkg.version,
+          storageType: usedSystemTemp ? 'system-temp' : 'project-local'
         };
         await fs.writeFile(path.join(workspacePath, "context.json"), JSON.stringify(contextInfo, null, 2));
 
+        // Also update .gitignore to ignore .docsgrep if using project-local storage
+        if (!usedSystemTemp) {
+          try {
+            const gitignorePath = path.join(projectPath, ".gitignore");
+            let gitignoreContent = "";
+            try {
+              gitignoreContent = await fs.readFile(gitignorePath, "utf-8");
+            } catch (e) {
+              // .gitignore doesn't exist yet
+            }
+            if (!gitignoreContent.includes(".docsgrep")) {
+              await fs.writeFile(gitignorePath, gitignoreContent + "\n# docsgrep workspace\n.docsgrep/\n");
+            }
+          } catch (e) {
+            // Ignore gitignore update errors
+          }
+        }
+        
         return {
           content: [
             {
               type: "text",
-              text: `Successfully initialized docsgrep workspace at ${workspacePath} (system temp directory).`,
+              text: `Successfully initialized docsgrep workspace at ${workspacePath} (${usedSystemTemp ? 'system temp directory' : 'project directory'}).`,
             },
           ],
         };
@@ -730,7 +751,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
 
-    case "analyze_project_tech_stack": {
+    case "spy_stack": {
       const { dirPath: rawPath } = request.params.arguments as { dirPath: string };
 
       try {
@@ -769,9 +790,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
 
-    case "gather_project_conventions": {
+    case "sniff_style": {
       const { dirPath: rawPath } = request.params.arguments as { dirPath: string };
-
+      
       try {
         const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
         const stat = await fs.stat(dirPath);
@@ -779,34 +800,43 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
           throw new Error("Provided path is not a directory");
         }
 
-        const conventions = await gatherProjectConventions(dirPath);
-        
-        let message = `Found ${Object.keys(conventions).length} convention/linter files in local directory.`;
-        if (Object.keys(conventions).length === 0) {
-          message += " No explicit documentation or linter config was found. Consider using the 'sample_codebase_patterns' tool to infer implicit conventions from the code.";
-        }
+        const release = await operationLimiter.acquire();
+        try {
+          logger.info("Starting project style analysis", { dirPath });
+          
+          const report: ProjectStyleReport = await analyzeProjectStyle(dirPath);
+          
+          logger.info("Project style analysis completed", { 
+            conventionsFound: report.conventions.found,
+            patternsSampled: report.patterns.sampled,
+          });
 
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  message,
-                  files: conventions,
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    message: `Project style analysis completed. ${report.conventions.message} ${report.patterns.message}`,
+                    conventions: report.conventions,
+                    patterns: report.patterns,
+                    recommendations: report.recommendations,
+                  },
+                  null,
+                  2
+                ),
+              },
+            ],
+          };
+        } finally {
+          release();
+        }
       } catch (error: any) {
         return {
           content: [
             {
               type: "text",
-              text: `Error gathering conventions: ${error.message}`,
+              text: `Error analyzing project style: ${error.message}`,
             },
           ],
           isError: true,
@@ -814,46 +844,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
 
-    case "sample_codebase_patterns": {
-      const { dirPath: rawPath } = request.params.arguments as { dirPath: string };
-
-      try {
-        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-        const stat = await fs.stat(dirPath);
-        if (!stat.isDirectory()) {
-          throw new Error("Provided path is not a directory");
-        }
-
-        const patterns = await sampleCodebasePatterns(dirPath);
-        return {
-          content: [
-            {
-              type: "text",
-              text: JSON.stringify(
-                {
-                  message: `Sampled ${Object.keys(patterns).length} source files to infer codebase patterns. Please analyze these files to determine the project's unwritten conventions (e.g. naming, spacing, paradigm).`,
-                  files: patterns,
-                },
-                null,
-                2
-              ),
-            },
-          ],
-        };
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error sampling codebase patterns: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-
-    case "explore_local_docs": {
+    case "hunt_docs": {
       const { dirPath: rawPath } = request.params.arguments as { dirPath: string };
 
       try {
@@ -892,7 +883,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
 
-    case "explore_remote_repo": {
+    case "fetch_repo": {
       const { repoUrl, branch, localProjectPath, authToken, sshKeyPath } = request.params.arguments as {
         repoUrl: string;
         branch?: string;
@@ -1032,7 +1023,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
 
-    case "read_doc_file": {
+    case "peek_file": {
       const { filePath } = request.params.arguments as { filePath: string };
 
       try {
@@ -1088,7 +1079,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
 
-    case "cleanup_cache": {
+    case "purge_cache": {
       const { localProjectPath: rawPath, maxAgeDays } = request.params.arguments as { localProjectPath: string; maxAgeDays?: number };
 
       try {
@@ -1154,7 +1145,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
 
-    case "search_docs": {
+    case "grep_docs": {
       const { dirPath: rawPath, pattern, filePattern } = request.params.arguments as {
         dirPath: string;
         pattern: string;
@@ -1201,7 +1192,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
 
-    case "audit_code_quality": {
+    case "lint_code": {
       const { dirPath: rawPath, filePatterns, focusAreas } = request.params.arguments as {
         dirPath: string;
         filePatterns?: string[];
@@ -1261,7 +1252,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
 
-    case "get_audit_prompt": {
+    case "ask_lint": {
       const { dirPath: rawPath } = request.params.arguments as { dirPath: string };
 
       try {
@@ -1291,7 +1282,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
 
-    case "security_audit": {
+    case "guard_security": {
       const { dirPath: rawPath, filePatterns } = request.params.arguments as {
         dirPath: string;
         filePatterns?: string[];
@@ -1350,7 +1341,7 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       }
     }
 
-    case "get_security_audit_prompt": {
+    case "ask_guard": {
       const { dirPath: rawPath } = request.params.arguments as { dirPath: string };
       
       try {

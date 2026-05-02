@@ -1,28 +1,271 @@
 # @anovise/docsgrep
 
-An MCP (Model Context Protocol) Server designed to efficiently explore local and remote codebases to extract context and documentation. It specifically focuses on locating and reading `README` files and documentation inside `docs/` directories.
+**docsgrep** is an MCP (Model Context Protocol) Server that helps developers and AI agents explore documentation, analyze code, and catch bugs with a systematic yet developer-friendly approach.
 
-## Features
+## 🎯 Philosophy
 
-- **System-Wide Temp Storage:** All temporary files stored in `/tmp/docsgrep/` - no project pollution, no `.docsgrep/` directory needed.
-- **Local Exploration:** Quickly scan a local directory to find all `README` and `docs/*.md` files.
-- **Remote Exploration:** Clone a remote git repository (using a fast `git clone --depth 1`) into system temp directory. Supports authentication for private repos. Supports retry logic with exponential backoff.
-- **File Reading:** Read the contents of the identified documentation files directly into your LLM context. Includes binary file detection and streaming for large files (>500KB).
-- **Search Documentation:** Search for patterns within documentation files using regex with the `search_docs` tool.
-- **Cache Management:** Clean up old cached repositories with the `cleanup_cache` tool. Includes cache size monitoring (1GB limit).
-- **Tech Stack Analysis:** Identify project dependencies from multiple package managers (Node.js, PHP, Go, Rust, Python, Ruby, Java, C++, C#, Elixir, Dart, etc.).
-- **Convention Gathering:** Collect linter configs, editor configs, and contributing guidelines to understand project standards.
-- **Code Pattern Sampling:** Sample representative source files to infer implicit coding conventions.
-- **Concurrency Control:** Operations are limited to 5 concurrent executions to prevent system overload.
-- **Structured Logging:** JSON-formatted logs for better observability.
+> "Catching bugs in code is like catching bugs in the wild - it requires patience, the right tools, and a systematic approach."
 
-## Installation & Usage
+## 🛠️ Tool List (Developer-Friendly)
 
-You can use this MCP server directly via `npx` in any MCP client (like Claude Desktop) without needing to install it globally.
+| # | Tool Name | Emoji | Description | Action |
+|---|-----------|-------|-----------|------|
+| 1 | `setup_camp` | 🏕️ | Setup base camp (workspace) for storing temp files, logs, and reports | Initialize |
+| 2 | `spy_stack` | 🕵️ | Spy on the project's technology stack (reads package.json, go.mod, etc.) | Analyze |
+| 3 | `sniff_style` | 🐕 | Sniff out project style: conventions, linters, and implicit coding patterns | Detect |
+| 4 | `hunt_docs` | 🔍 | Hunt for README files and documentation inside docs/ folders | Explore |
+| 5 | `fetch_repo` | 🚚 | Fetch (clone) remote repository to temp directory with smart caching | Fetch |
+| 6 | `peek_file` | 👀 | Peek into the contents of a specific documentation or README file | Read |
+| 7 | `purge_cache` | 🧹 | Purge (clean) old cached repositories from workspace | Clean |
+| 8 | `grep_docs` | 🔎 | Grep (search) for patterns within documentation files | Search |
+| 9 | `lint_code` | 🧼 | Lint code quality (enterprise-grade audit) | Audit |
+| 10 | `ask_lint` | ❓ | Ask before lint - generates interactive prompt with options | Prompt |
+| 11 | `catch_bugs` | 🐛 | Catch bugs: runtime errors, race conditions, memory leaks, etc. | Detect |
+| 12 | `guard_security` | 🛡️ | Guard security (OWASP Top 10, secrets, privacy, dependencies) | Audit |
+| 13 | `ask_guard` | ❓ | Ask before guard - generates interactive prompt with options | Prompt |
 
-### Claude Desktop Configuration
+---
 
-Add the following to your `claude_desktop_config.json`:
+## 📖 Tool Details
+
+### 1. **`setup_camp`** 🏕️ - Setup Base Camp
+**Description:** Initializes docsgrep workspace. Tries system temp (`/tmp/docsgrep/`) first, falls back to `.docsgrep/` in project directory if permission denied. Auto-updates `.gitignore`.
+
+**Arguments:**
+- `projectPath` (string, required): Absolute path to the local project root.
+
+**Example:**
+```bash
+setup_camp(projectPath: "/home/user/myproject")
+# Success: workspace at /tmp/docsgrep/myproject (or .docsgrep/ if fallback)
+```
+
+---
+
+### 2. **`spy_stack`** 🕵️ - Spy Technology Stack
+**Description:** Spies on the project's technology stack by reading package manager files (package.json, composer.json, go.mod, Cargo.toml, etc.).
+
+**Arguments:**
+- `dirPath` (string, required): Absolute path to the local directory to analyze.
+
+**Supports:** Node.js, PHP, Go, Rust, Python, Ruby, Java, C/C++, C#, Elixir, Dart, and more.
+
+---
+
+### 3. **`sniff_style`** 🐕 - Sniff Code Style
+**Description:** Sniffs out project style: explicit conventions, linter configs, and infers implicit coding patterns from codebase samples. Combines convention detection and code pattern analysis.
+
+**Arguments:**
+- `dirPath` (string, required): Absolute path to the local directory to analyze.
+
+**What it detects:**
+- ✅ Explicit conventions (ESLint, Prettier, .editorconfig, CONTRIBUTING.md)
+- ✅ Implicit patterns (camelCase, snake_case, PascalCase)
+- ✅ Indentation (spaces vs tabs, width)
+- ✅ Quote style (single, double, backtick)
+- ✅ Average line length and comment coverage
+
+---
+
+### 4. **`hunt_docs`** 🔍 - Hunt Documentation
+**Description:** Hunts for README files and documentation inside `docs/` folders in a local directory.
+
+**Arguments:**
+- `dirPath` (string, required): Absolute path to the local directory to explore.
+
+**Returns:** Array of file paths (README*, docs/**/*.md).
+
+---
+
+### 5. **`fetch_repo`** 🚚 - Fetch Remote Repository
+**Description:** Fetches (clones) a remote git repository to a temporary directory with smart caching. If repo exists, does `git pull` for instant subsequent runs.
+
+**Arguments:**
+- `repoUrl` (string, required): URL of the git repository (e.g., https://github.com/user/repo.git).
+- `branch` (string, optional): Specific branch to explore (e.g., 'docs', 'gh-pages', 'v14').
+- `localProjectPath` (string, optional): Path to local project (uses `localProjectPath/.docsgrep/repos/`).
+- `authToken` (string, optional): Authentication token (GitHub PAT, GitLab token, etc.).
+- `sshKeyPath` (string, optional): Path to SSH private key.
+
+**Caching:** Based on MD5 hash of repo URL. Uses `depth=1` (shallow clone) for speed.
+
+---
+
+### 6. **`peek_file`** 👀 - Peek File
+**Description:** Peeks into the contents of a specific documentation or README file. Includes binary file detection and truncation for large files (>500KB).
+
+**Arguments:**
+- `filePath` (string, required): Absolute path to the file to read.
+
+**Features:**
+- ✅ Binary file detection (rejects binary)
+- ✅ Streaming for large files
+- ✅ Path validation (prevents path traversal)
+
+---
+
+### 7. **`purge_cache`** 🧹 - Purge Old Cache
+**Description:** Purges (cleans) old cached repositories from the `.docsgrep/repos/` directory. Removes repos older than max age (default: 7 days).
+
+**Arguments:**
+- `localProjectPath` (string, required): Absolute path to the local project containing `.docsgrep` workspace.
+- `maxAgeDays` (number, optional): Maximum age in days for cached repos (default: 7).
+
+**Monitoring:** Checks cache size (1GB limit). Warns if exceeded.
+
+---
+
+### 8. **`grep_docs`** 🔎 - Grep Documentation
+**Description:** Greps (searches) for a regex pattern within documentation files (README, docs/**/*.md) in a local directory.
+
+**Arguments:**
+- `dirPath` (string, required): Absolute path to the local directory to search.
+- `pattern` (string, required): The regex pattern to search for.
+- `filePattern` (string, optional): Regex pattern to filter which documentation files to search (e.g., 'README.*').
+
+**Returns:** Array of { file, line, content } with line numbers.
+
+---
+
+### 9. **`lint_code`** 🧼 - Lint Code Quality (Enterprise-Grade)
+**Description:** Lints code quality with enterprise-grade analysis. Analyzes tech stack, conventions, and applies industry best practices to detect issues like dead code, god classes, SOC violations, and more.
+
+**Arguments:**
+- `dirPath` (string, required): Absolute path to the local directory to audit.
+- `filePatterns` (array of strings, optional): Glob patterns to specify files (e.g., ['src/**/*.tsx']).
+- `focusAreas` (array of strings, optional): Focus areas: 'dead_code', 'structure', 'performance', 'naming', 'all'.
+
+**Scoring:**
+- 📊 **Documentation Score** (0-100): Based on README, docs/, linter config, tests, CI/CD.
+- 🧼 **Code Quality Score** (0-100): Based on issues per file.
+- 🎯 **Strengths**: What the project does well.
+- 💡 **Recommendations**: Prioritized by severity (critical → high → medium → low).
+
+**Language Agnostic:** JS/TS, Python, Go, Rust, Ruby, Java, C/C++, C#, PHP, Swift, Dart, Elixir - works with ALL!
+
+---
+
+### 10. **`ask_lint`** ❓ - Ask Before Lint
+**Description:** Asks (generates prompt) before linting. Shows detected tech stack and available linting options.
+
+**Arguments:**
+- `dirPath` (string, required): Absolute path to the local directory.
+
+**Returns:** Interactive prompt with choices: Full Audit, Documentation Check, Structure Audit, Code Smells, Custom Focus.
+
+---
+
+### 11. **`catch_bugs`** 🐛 - Catch Bugs (Professional Bug Detection)
+**Description:** Catches bugs, errors, warnings, and potential issues: runtime errors, race conditions, memory leaks, dependency coupling, and performance issues with large data handling.
+
+**This is NOT security audit or code quality audit** - it focuses on actual bugs that could cause runtime failures!
+
+**Arguments:**
+- `dirPath` (string, required): Absolute path to the local directory to analyze.
+- `filePatterns` (array of strings, optional): Glob patterns (e.g., ['src/**/*.ts']).
+
+**6 Detection Categories:**
+
+#### 🔍 **1. Runtime Errors**
+- Unhandled Promise Rejections (`.then()` without `.catch()`)
+- Null/Undefined Dereference (property access without null checks)
+- Uninitialized Variables
+- Type Coercion Issues (loose equality `==`)
+
+#### 🏃 **2. Race Conditions**
+- Unsynchronized Shared State (shared variable modifications)
+- Missing Async/Await (mixing async patterns)
+- Concurrent Modification (array modification during iteration)
+
+#### 💾 **3. Memory Leaks**
+- Event Listener Leaks (listeners added without removal)
+- Uncleared Intervals/Timers (`setInterval` without `clearInterval`)
+- Large Object References (caches without size limits)
+- Closure Memory Leaks (closures retaining large scopes)
+
+#### 🔗 **4. Dependency Coupling**
+- Circular Dependencies (mutual dependencies between modules)
+- Tight Coupling (excessive direct instantiation, many imports)
+- God Object/Module (modules with too many exports)
+
+#### ⚡ **5. Performance Issues (Large Data)**
+- Inefficient Loops (loop conditions recalculating `.length`)
+- Synchronous Large File Operations (`readFileSync` - blocking event loop)
+- Memory-Heavy Operations (chained array operations, large JSON parsing)
+- Unbounded Recursion (recursive functions without depth limits)
+
+#### 📝 **6. Unresolved Issues**
+- TODO/FIXME/HACK comments
+- Console/Debug Statements (should be removed for production)
+- Deprecated API Usage (e.g., `Date.getYear()`)
+
+**Bug Score (0-100):**
+- Higher is better!
+- Deducts points for critical/high issues and bug density.
+- **Risk Levels:** Low (90-100), Medium (70-89), High (50-69), Critical (<50).
+
+**Professional Features:**
+- ✅ **Structured Detection** - 6 major categories, 20+ pattern types
+- ✅ **Severity Scoring** - critical/high/medium/low/info
+- ✅ **Actionable Remediation** - Specific fix suggestions
+- ✅ **Self-Exclusion** - Won't false-positive on its own source
+- ✅ **Language Agnostic** - Works with any language
+- ✅ **Detailed Reports** - File, line, evidence, impact, remediation
+
+---
+
+### 12. **`guard_security`** 🛡️ - Guard Security (Enterprise-Grade)
+**Description:** Guards your code with enterprise-grade security audit covering OWASP Top 10, ISO/IEC 27001, secrets detection, privacy (GDPR/CCPA), and dependency vulnerabilities.
+
+**Arguments:**
+- `dirPath` (string, required): Absolute path to the local directory to audit.
+- `filePatterns` (array of strings, optional): Glob patterns (e.g., ['**/*.js', '**/*.env']).
+
+**OWASP Top 10 (2021) Coverage:**
+- 🔓 **A01: Broken Access Control** - IDOR, missing authorization
+- 🔐 **A02: Cryptographic Failures** - Weak hashing, insecure random
+- 💉 **A03: Injection** - SQL, NoSQL, XSS, Command injection
+- 🏗️ **A04: Insecure Design** - Missing security design
+- ⚙️ **A05: Security Misconfiguration** - Debug mode, CORS wildcard
+- 🔑 **A07: Identification and Authentication Failures** - Weak auth
+- 📦 **A08: Software and Data Integrity Failures** - Insecure deserialization
+- 📊 **A09: Security Logging and Monitoring Failures** - Missing audit logs
+- 🌐 **A10: Server-Side Request Forgery (SSRF)** - Unvalidated URL fetching
+
+**Secrets Detection:**
+- AWS Access Keys, GitHub Tokens (ghp_), Google API Keys (AIza)
+- Slack Tokens, Private Keys, Generic API Keys
+
+**Privacy & Compliance:**
+- PII Detection (Email, Phone, Credit Card, SSN, IP)
+- GDPR/CCPA Compliance
+- ISO/IEC 27001 Check
+
+**Dependency Security:**
+- Vulnerable packages (npm audit integration)
+- Outdated dependencies (floating versions)
+- Lock file verification
+
+**Security Score (0-100):**
+- **Risk Levels:** Low, Medium, High, Critical
+- **Remediation steps** with references
+
+---
+
+### 13. **`ask_guard`** ❓ - Ask Before Guard
+**Description:** Asks (generates prompt) before guarding. Shows what will be scanned (OWASP, secrets, privacy, dependencies) and available options.
+
+**Arguments:**
+- `dirPath` (string, required): Absolute path to the local directory.
+
+**Returns:** Interactive prompt with choices: Full Security Audit, OWASP Only, Secrets Scan, Privacy & Compliance, Dependency Audit.
+
+---
+
+## 🚀 Quick Start
+
+### Installation (via npx)
+Add to your MCP client config (Claude Desktop, etc.):
 
 ```json
 {
@@ -35,286 +278,91 @@ Add the following to your `claude_desktop_config.json`:
 }
 ```
 
-## Available Tools
-
-1. `init_workspace`
-    - **Description**: Initializes docsgrep workspace metadata. Temporary files are stored system-wide in `/tmp/docsgrep/`. No `.docsgrep/` directory is created in your project.
-    - **Arguments**:
-      - `projectPath` (string): The absolute path to the local project root.
-
-2. `analyze_project_tech_stack`
-   - **Description**: Analyzes a local directory to identify the project's technology stack by reading package manager files (e.g., `package.json`, `composer.json`, `go.mod`, `Cargo.toml`, etc.). Provides the contents of these files (up to 50KB each) to give the LLM instant context on project dependencies.
-   - **Arguments**:
-     - `dirPath` (string): The absolute path to the local directory.
-
-3. `gather_project_conventions`
-   - **Description**: Gathers project conventions, linters, and architectural guidelines using fuzzy matching (e.g., `**/*lint*`, `**/*style*.md`, `CONTRIBUTING.md`, `.editorconfig`) to provide context for AI-driven code quality audits. Completely agnostic to the tech stack.
-   - **Arguments**:
-     - `dirPath` (string): The absolute path to the local directory to scan.
-
-4. `sample_codebase_patterns`
-   - **Description**: Samples a few representative source code files from the project. Use this when a project lacks explicit documentation or linter configs to allow the AI to infer implicit coding conventions and style directly from the code.
-   - **Arguments**:
-     - `dirPath` (string): The absolute path to the local directory to sample.
-
-5. `explore_local_docs`
-   - **Description**: Explores a local directory to find README files and documentation inside `docs/` folders.
-   - **Arguments**:
-     - `dirPath` (string): The absolute path to the local directory.
-
-6. `explore_remote_repo`
-   - **Description**: Clones a remote git repository and finds documentation. Leverages smart caching (doing a `git pull` if it already exists) based on MD5 hashes of repo URLs to make subsequent runs instantaneous without re-cloning.
-   - **Arguments**:
-     - `repoUrl` (string): The URL of the git repository.
-     - `branch` (string, optional): Specific branch to explore (e.g., 'docs').
-     - `localProjectPath` (string, optional): The absolute path to your local project. If provided, the repo will be cloned into `[localProjectPath]/.docsgrep/repos/` instead of the global OS temp directory.
-
- 7. `read_doc_file`
-    - **Description**: Reads the contents of a specific documentation or README file. Includes binary file detection and path validation.
-    - **Arguments**:
-      - `filePath` (string): The absolute path to the file to read.
-
- 8. `cleanup_cache`
-    - **Description**: Cleans up old cached repositories in `/tmp/docsgrep/`. Removes repos older than the specified max age (default: 7 days). Monitors cache size (1GB limit).
-    - **Arguments**:
-      - `localProjectPath` (string): The absolute path to the local project (used to identify project-specific cache).
-      - `maxAgeDays` (number, optional): Maximum age in days for cached repos (default: 7).
-
- 9. `search_docs`
-    - **Description**: Searches for a regex pattern within documentation files (README, docs/**/*.md) in a local directory. Returns matching lines with file path and line number.
-    - **Arguments**:
-      - `dirPath` (string): The absolute path to the local directory to search.
-      - `pattern` (string): The regex pattern to search for in documentation files.
-      - `filePattern` (string, optional): Regex pattern to filter which documentation files to search (e.g., 'README.*').
-
-10. `audit_code_quality`
-    - **Description**: Performs an enterprise-grade code quality audit. Analyzes tech stack, conventions, and applies industry best practices to detect issues like dead code, god classes, SOC violations, naming conventions, and more.
-    - **Arguments**:
-      - `dirPath` (string): The absolute path to the local directory to audit.
-      - `filePatterns` (array of strings, optional): Array of glob patterns to specify which files to audit (e.g., ['src/**/*.tsx']).
-      - `focusAreas` (array of strings, optional): Focus audit on specific areas: 'dead_code', 'structure', 'performance', 'naming', 'all'.
-
- 11. `get_audit_prompt`
-    - **Description**: Generates an interactive prompt to ask the user what they want to audit. Helps guide the audit process by showing detected tech stack and available options.
-    - **Arguments**:
-      - `dirPath` (string): The absolute path to the local directory.
-
- 12. `catch_bugs`
-    - **Description**: Catches bugs, errors, warnings, and potential issues in code: race conditions, memory leaks, runtime errors, dependency coupling, and performance issues with large data handling.
-    - **Arguments**:
-      - `dirPath` (string): The absolute path to the local directory to analyze.
-      - `filePatterns` (array of strings, optional): Array of glob patterns to specify which files to scan (e.g., ['src/**/*.ts']).
-
- 13. `get_security_audit_prompt`
-    - **Description**: Generates an interactive prompt for security auditing. Shows what will be scanned (OWASP Top 10, secrets, privacy, dependencies) and available options.
-    - **Arguments**:
-      - `dirPath` (string): The absolute path to the local directory.
-
- 14. `security_audit`
-    - **Description**: Performs an enterprise-grade security audit covering OWASP Top 10, ISO/IEC 27001, secrets detection, privacy (GDPR/CCPA), and dependency vulnerabilities. Provides comprehensive security analysis with remediation steps.
-    - **Arguments**:
-      - `dirPath` (string): The absolute path to the local directory to audit.
-      - `filePatterns` (array of strings, optional): Array of glob patterns to specify which files to scan (e.g., ['**/*.js', '**/*.env']).
-
-## 🐛 Bug Catcher (catch_bugs) - Professional Bug Detection
-
-The `catch_bugs` tool provides **comprehensive bug detection** that focuses on real runtime issues:
-
-### 🔍 What It Detects
-
-#### 1. **Runtime Errors**
-- **Unhandled Promise Rejections** - `.then()` without `.catch()`, `await` without `try-catch`
-- **Null/Undefined Dereference** - Property access without null checks
-- **Uninitialized Variables** - Variables declared but not initialized
-- **Type Coercion Issues** - Loose equality (`==`) that may cause unexpected behavior
-
-#### 2. **Race Conditions**
-- **Unsynchronized Shared State** - Shared variable modifications without synchronization
-- **Missing Async/Await** - Mixing async patterns inconsistently
-- **Concurrent Modification** - Array/object modification during iteration
-
-#### 3. **Memory Leaks**
-- **Event Listener Leaks** - Listeners added without removal
-- **Uncleared Intervals/Timers** - `setInterval` without `clearInterval`
-- **Large Object References** - Caches or collections without size limits
-- **Closure Memory Leaks** - Deep closures retaining large scopes
-
-#### 4. **Dependency Coupling**
-- **Circular Dependencies** - Mutual dependencies between modules
-- **Tight Coupling** - Excessive direct instantiation, many imports
-- **God Object/Module** - Modules with too many exports (violating Single Responsibility)
-
-#### 5. **Performance Issues (Large Data Handling)**
-- **Inefficient Loops** - Loop conditions recalculating `.length` each iteration
-- **Synchronous Large File Operations** - `readFileSync`/`writeFileSync` blocking event loop
-- **Memory-Heavy Operations** - Chained array operations, large JSON parsing
-- **Unbounded Recursion** - Recursive functions without depth limits
-
-#### 6. **Unresolved Issues**
-- **TODO/FIXME/HACK** - Unresolved comments indicating known issues
-- **Console/Debug Statements** - Debug code left in production
-- **Deprecated API Usage** - Using deprecated functions (e.g., `Date.getYear()`)
-
-### 📊 Bug Score & Risk Assessment
-- **Bug Score** (0-100): Higher is better
-  - Calculated based on severity, density, and issue types
-  - Deducts points for critical/high issues and bug density
-- **Risk Levels**:
-  - **Low** (90-100): Minimal bug risk
-  - **Medium** (70-89): Some issues to address
-  - **High** (50-69): Significant bug risk
-  - **Critical** (<50): Urgent bugs need fixing
-
-### 🎯 Categories & Status
-Each category shows:
-- **pass** - No issues detected ✓
-- **warning** - Some issues found ⚠️
-- **fail** - Critical issues present ✗
-
-### 💼 Professional Features
-- ✅ **Structured Detection** - 6 major categories, 20+ pattern types
-- ✅ **Severity Scoring** - critical/high/medium/low/info
-- ✅ **Actionable Remediation** - Specific fix suggestions for each issue
-- ✅ **Self-Exclusion** - Won't false-positive on its own source code
-- ✅ **Language Agnostic** - Works with JS, TS, Python, Go, Rust, etc.
-- ✅ **Detailed Reports** - File, line number, evidence, impact, remediation
-
-### 📂 Works With Any Project
-- ✅ Node.js / TypeScript (Express, Next.js, etc.)
-- ✅ Python (Django, Flask, FastAPI)
-- ✅ Go, Rust, Ruby, Java, C/C++, C#, PHP, Swift, Dart
-- ✅ No configuration needed - analyzes YOUR code automatically
-
-## Enterprise-Grade Code Quality Audit (Language-Agnostic)
-
-The `audit_code_quality` tool provides **universal** code analysis that works across ALL programming languages and tech stacks:
-
-### 🔍 What It Checks (Universal)
-- **Dead Code**: Unused variables, functions, duplicate code (DRY violations)
-- **Code Structure**: Overly long files/functions, God objects (Single Responsibility)
-- **Readability**: Deep nesting, long lines, magic numbers
-- **Technical Debt**: TODO/FIXME comments, missing documentation
-- **Naming Conventions**: Auto-detects camelCase, snake_case, PascalCase, UPPER_SNAKE
-- **Code Style**: Auto-detects indentation (spaces/tabs), quote style, comment patterns
-- **Project Organization**: Documentation coverage, linter config, tests, CI/CD
-
-### 🧠 How It Works (Pattern-Based Analysis)
-1. **No Tech Stack Assumptions**: Doesn't assume specific frameworks or languages
-2. **Automatic Pattern Detection**: 
-   - Analyzes actual code to detect naming styles (camelCase, snake_case, etc.)
-   - Detects indentation preferences (spaces vs tabs, width)
-   - Identifies quote styles (single, double, backtick)
-   - Measures average line length and comment coverage
-3. **Documentation Inference**: When docs are missing, reads patterns FROM the code itself
-4. **Universal Code Smells**: Detects issues that apply to ALL languages (nesting, length, duplication)
-
-### 📊 Audit Scores
-- **Documentation Score** (0-100): Based on README, docs/, linter config, tests, CI
-- **Code Quality Score** (0-100): Based on issues found per file
-- **Strengths Identified**: What the project does well
-- **Actionable Recommendations**: Prioritized by severity (critical → high → medium → low)
-
-### 🎯 Audit Workflow
-1. **`get_audit_prompt`**: Generates interactive prompt showing detected project structure
-2. **`audit_code_quality`**: Runs comprehensive universal audit
-3. **Review Report**: JSON report with findings, scores, and recommendations
-4. **AI Agent Integration**: Use detailed suggestions to fix issues automatically
-
-### 📂 Works With Any Project
-- ✅ JavaScript / TypeScript (React, Next.js, Vue, Angular, etc.)
-- ✅ Python (Django, Flask, FastAPI, etc.)
-- ✅ Go, Rust, Ruby, Java, C/C++, C#, PHP, Swift, Dart, Elixir, and more
-- ✅ No configuration needed - adapts to YOUR project's conventions
-
-## 🔒 Enterprise Security Audit
-
-The `security_audit` tool provides **comprehensive security analysis** based on industry standards:
-
-### 🛡️ OWASP Top 10 (2021) Coverage
-- **A01: Broken Access Control** - IDOR, missing authorization
-- **A02: Cryptographic Failures** - Weak hashing (MD5/SHA1), insecure random
-- **A03: Injection** - SQL, NoSQL, XSS, Command injection
-- **A04: Insecure Design** - Missing security design
-- **A05: Security Misconfiguration** - Debug mode, CORS wildcard, insecure defaults
-- **A07: Identification and Authentication Failures** - Weak auth, session issues
-- **A08: Software and Data Integrity Failures** - Insecure deserialization, eval()
-- **A09: Security Logging and Monitoring Failures** - Missing audit logs
-- **A10: Server-Side Request Forgery (SSRF)** - Unvalidated URL fetching
-
-### 🔑 Secrets Detection
-- AWS Access Keys, Secret Keys
-- GitHub Tokens (ghp_)
-- Google API Keys (AIza)
-- Slack Tokens
-- Private Keys (BEGIN PRIVATE KEY)
-- Generic API Keys, Passwords in code
-
-### 🔐 Privacy & Compliance
-- **PII Detection**: Email, Phone, Credit Card, SSN, IP Address
-- **GDPR/CCPA**: PII in logs, client-side PII exposure
-- **ISO/IEC 27001**: Management of vulnerabilities, access control, record protection
-- **Data Handling**: Secure logging, masking, consent
-
-### 📦 Dependency Security
-- Vulnerable packages detection
-- Outdated dependencies (floating versions)
-- Lock file verification
-- Integration with npm audit/pip-audit
-
-### 🎯 Security Audit Workflow
-1. **`get_security_audit_prompt`**: Shows what will be scanned (OWASP, secrets, privacy, dependencies)
-2. **`security_audit`**: Runs full enterprise security analysis
-3. **Review Report**:
-   - **Security Score** (0-100) with Risk Level (Critical/High/Medium/Low)
-   - **OWASP Top 10 Status**: Compliance per category
-   - **Secrets Found**: With file, line, type (truncated for security)
-   - **Privacy Issues**: PII handling, compliance violations
-   - **Compliance Status**: ISO/IEC 27001 check
-   - **Actionable Remediation**: Prioritized by severity with references
-4. **Fix & Monitor**: Use recommendations to secure your code
-
-### 🏢 Enterprise Features
-- ✅ **Language Agnostic**: Works with ANY programming language
-- ✅ **Industry Standards**: OWASP, ISO/IEC, GDPR, CCPA, HIPAA-ready
-- ✅ **Zero Config**: Auto-detects project structure and risks
-- ✅ **Actionable Output**: Line numbers, evidence, impact, remediation
-- ✅ **CI/CD Ready**: JSON output for automation
-
-## Local Development
-
-1. Clone the repository.
-2. Run `npm install`.
-3. Run `npm run build` to compile the TypeScript files.
-4. Run `npm run dev` or use the test script to test locally.
-5. Run `npm run test` to run the test suite.
-6. Run `npm run test:coverage` to check test coverage.
-
-## Testing
-
-The project uses Vitest for testing. Run the following commands:
-
+### Local Development
 ```bash
-npm run test          # Run tests once
-npm run test:watch    # Run tests in watch mode
-npm run test:coverage # Run tests with coverage report
+git clone <repo-url> && cd docsgrep
+npm install
+npm run build
+npm run dev
 ```
 
-## Security
+### Testing
+```bash
+npm run test          # Run tests once
+npm run test:watch    # Watch mode
+npm run test:coverage # Coverage report
+```
 
-- All file paths are validated to prevent path traversal attacks.
-- Repository URLs are validated to ensure they use safe protocols (http, https, git, ssh).
-- Binary files are detected and rejected when reading.
-- Concurrent operations are limited to prevent resource exhaustion.
+---
 
-## Community
+## 📂 Project Structure
 
-- For bugs and feature requests, please open an issue.
-- Please read our [Contributing Guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md).
+```
+docsgrep/
+├── src/
+│   ├── index.ts           # Main MCP server, tool definitions, request handlers
+│   ├── project-style.ts   # Sniff style (combined conventions + patterns)
+│   ├── audit.ts          # Audit orchestrator
+│   ├── best-practices.ts # Universal code quality analyzer
+│   ├── bug-catcher.ts   # Catch bugs (runtime errors, race, memory, etc.)
+│   └── security-audit.ts # Guard security (OWASP, ISO, GDPR)
+├── tests/
+│   ├── bug-catcher.test.ts  # 34 unit tests for catch_bugs
+│   └── ...
+├── build/              # Compiled JavaScript (generated)
+├── README.md           # This documentation
+├── package.json
+└── tsconfig.json
+```
 
-## Contact
+---
 
-For public communication, inquiries, or support, please contact: **reasvyn@gmail.com**
+## 🔒 Security & Best Practices
 
-## License
+- ✅ Path validation (prevents path traversal)
+- ✅ Repo URL validation (only http, https, git, ssh protocols)
+- ✅ Binary file detection (rejects binary in peek_file)
+- ✅ Concurrency limiter (max 5 concurrent operations)
+- ✅ Structured logging (JSON format)
+- ✅ Self-exclusion (tools won't false-positive on their own source)
+- ✅ Workspace fallback (system temp → project local)
 
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+---
+
+## 💡 Tips for Developers
+
+1. **Use `spy_stack`** first to understand the project's tech stack.
+2. **`sniff_style`** to understand coding conventions before making changes.
+3. **`catch_bugs`** regularly to catch bugs before production.
+4. **`lint_code`** and **`guard_security`** for periodic audits (CI/CD).
+5. **`ask_lint`** and **`ask_guard`** generate interactive prompts before auditing.
+6. **Setup `setup_camp`** once at the beginning of your project.
+
+---
+
+## 🤝 Contributing
+
+1. Fork the repo and `git clone`
+2. `npm install && npm run build`
+3. Create your feature branch (`git checkout -b feature/amazing-feature`)
+4. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
+
+---
+
+## 📜 License
+
+MIT License - see [LICENSE](LICENSE) file.
+
+---
+
+## 📞 Contact
+
+Bug reports, feature requests, or questions: **reasvyn@gmail.com**
+
+---
+
+**Happy coding, and may your bugs be easily caught!** 🐛✨
