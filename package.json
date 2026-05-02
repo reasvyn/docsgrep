@@ -1,7 +1,7 @@
 {
   "name": "@anovise/docsgrep",
   "version": "0.2.1",
-  "description": "MCP Server to explore local and remote documentation and README files",
+  "description": "MCP Server to explore local and remote documentation",
   "type": "module",
   "bin": {
     "docsgrep": "build/index.js"
@@ -22,7 +22,7 @@
     "documentation"
   ],
   "author": "Reasvyn <reasvyn@gmail.com>",
-  "license": "ISC",
+  "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",
     "glob": "^10.0.0",

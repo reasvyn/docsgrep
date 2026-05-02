@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { BugDetector } from '../src/bug-catcher.js';
-import { catchBugs } from '../src/bug-catcher.js';
+import { BugDetector } from '../../src/bug-catcher.js';
+import { catchBugs } from '../../src/bug-catcher.js';
 
 describe('BugDetector', () => {
   let detector: BugDetector;

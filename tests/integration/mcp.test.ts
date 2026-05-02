@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const serverPath = path.join(__dirname, '..', 'build', 'index.js');
+const serverPath = path.join(__dirname, '..', '..', 'build', 'index.js');
 
 describe('MCP Server Integration', () => {
   let client: Client;

@@ -307,8 +307,8 @@ docsgrep/
 │   ├── bug-catcher.ts   # Catch bugs (runtime errors, race, memory, etc.)
 │   └── security-audit.ts # Guard security (OWASP, ISO, GDPR)
 ├── tests/
-│   ├── bug-catcher.test.ts  # 34 unit tests for catch_bugs
-│   └── ...
+│   ├── unit/            # Unit tests for internal logic
+│   └── integration/     # MCP server and tool integration tests
 ├── build/              # Compiled JavaScript (generated)
 ├── README.md           # This documentation
 ├── package.json
