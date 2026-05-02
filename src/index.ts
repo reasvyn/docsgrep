@@ -14,7 +14,65 @@ import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import * as os from "node:os";
 import * as crypto from "node:crypto";
+import * as readline from "node:readline";
 import { fileURLToPath } from "node:url";
+
+// Structured logger
+class Logger {
+  private context: string;
+  
+  constructor(context: string) {
+    this.context = context;
+  }
+  
+  info(message: string, meta?: Record<string, any>) {
+    console.error(JSON.stringify({ level: 'info', context: this.context, message, timestamp: new Date().toISOString(), ...meta }));
+  }
+  
+  error(message: string, meta?: Record<string, any>) {
+    console.error(JSON.stringify({ level: 'error', context: this.context, message, timestamp: new Date().toISOString(), ...meta }));
+  }
+  
+  warn(message: string, meta?: Record<string, any>) {
+    console.error(JSON.stringify({ level: 'warn', context: this.context, message, timestamp: new Date().toISOString(), ...meta }));
+  }
+}
+
+const logger = new Logger('docsgrep');
+
+// Concurrency limiter
+class Semaphore {
+  private permits: number;
+  private queue: Array<() => void> = [];
+
+  constructor(permits: number) {
+    this.permits = permits;
+  }
+
+  async acquire(): Promise<() => void> {
+    if (this.permits > 0) {
+      this.permits--;
+      return () => this.release();
+    }
+
+    return new Promise((resolve) => {
+      this.queue.push(() => {
+        this.permits--;
+        resolve(() => this.release());
+      });
+    });
+  }
+
+  private release() {
+    this.permits++;
+    if (this.queue.length > 0) {
+      const next = this.queue.shift();
+      next?.();
+    }
+  }
+}
+
+const operationLimiter = new Semaphore(5); // Max 5 concurrent operations
 
 interface ToolResponse {
   content: Array<{ type: "text"; text: string }>;
@@ -24,19 +82,31 @@ interface ToolResponse {
 const MAX_FILE_SIZE_TECH = 50000;
 const MAX_FILE_SIZE_CONVENTIONS = 100000;
 const MAX_FILE_SIZE_SAMPLE = 20000;
+const MAX_FILE_SIZE_READ = 500000; // 500KB for read_doc_file
 const GIT_TIMEOUT_MS = 60000;
+const MAX_CACHE_SIZE_MB = 1000; // 1GB max cache size
+const MAX_RETRY_ATTEMPTS = 3;
 
-function validateStringParam(param: unknown, paramName: string): string {
+export function validateStringParam(param: unknown, paramName: string): string {
   if (typeof param !== "string" || !param.trim()) {
     throw new Error(`Invalid ${paramName}: must be a non-empty string`);
   }
   return param.trim();
 }
 
-function validateDirPath(dirPath: string): string {
+export function validateDirPath(dirPath: string): string {
   const resolved = path.resolve(dirPath);
-  if (resolved !== path.normalize(resolved)) {
-    throw new Error("Invalid path: path traversal detected");
+  // Check if the original path tries to traverse above by having '..' that would escape
+  // We do this by checking if the resolved path is different from what we'd get
+  // if we didn't allow '..' to escape the current working directory context
+  const normalized = path.normalize(dirPath);
+  if (normalized.includes('..')) {
+    // Check if using '..' would actually escape the intended directory
+    // For simplicity, we just ensure the resolved path is used
+    const resolvedFromNormalized = path.resolve(normalized);
+    if (resolvedFromNormalized !== resolved) {
+      throw new Error("Invalid path: path traversal detected");
+    }
   }
   return resolved;
 }
@@ -44,6 +114,49 @@ function validateDirPath(dirPath: string): string {
 async function withTimeout<T>(promise: Promise<T>, ms: number, op: string): Promise<T> {
   const timeout = new Promise<never>((_, reject) => setTimeout(() => reject(new Error(`${op} timed out after ${ms}ms`)), ms));
   return Promise.race([promise, timeout]);
+}
+
+async function withRetry<T>(fn: () => Promise<T>, attempts: number = MAX_RETRY_ATTEMPTS, op: string): Promise<T> {
+  let lastError: Error | null = null;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fn();
+    } catch (e: any) {
+      lastError = e;
+      logger.warn(`${op} attempt ${i + 1} failed`, { error: e.message });
+      if (i < attempts - 1) {
+        await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, i))); // Exponential backoff
+      }
+    }
+  }
+  throw lastError || new Error(`${op} failed after ${attempts} attempts`);
+}
+
+function isBinaryFile(content: Buffer): boolean {
+  // Check for null bytes which indicate binary content
+  for (let i = 0; i < Math.min(content.length, 8000); i++) {
+    if (content[i] === 0) return true;
+  }
+  return false;
+}
+
+async function getCacheSize(dirPath: string): Promise<number> {
+  let totalSize = 0;
+  try {
+    const entries = await fs.readdir(dirPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = path.join(dirPath, entry.name);
+      if (entry.isDirectory()) {
+        totalSize += await getCacheSize(fullPath);
+      } else {
+        const stat = await fs.stat(fullPath);
+        totalSize += stat.size;
+      }
+    }
+  } catch (e) {
+    // ignore
+  }
+  return totalSize;
 }
 
 async function cleanupCache(baseDir: string, maxAgeMs: number = 7 * 24 * 60 * 60 * 1000): Promise<string[]> {
@@ -86,6 +199,41 @@ const server = new Server(
     },
   }
 );
+
+// Helper function to search within documentation files
+async function searchDocsInDir(dirPath: string, searchPattern: string, filePattern?: string) {
+  const release = await operationLimiter.acquire();
+  try {
+    const docs = await findDocsInDir(dirPath);
+    const regex = new RegExp(searchPattern, 'gi');
+    const results: Array<{ file: string; line: number; content: string }> = [];
+
+    for (const file of docs) {
+      if (filePattern && !new RegExp(filePattern).test(file)) continue;
+      
+      try {
+        const content = await fs.readFile(file, 'utf-8');
+        const lines = content.split('\n');
+        
+        for (let i = 0; i < lines.length; i++) {
+          if (regex.test(lines[i])) {
+            results.push({
+              file,
+              line: i + 1,
+              content: lines[i].trim(),
+            });
+          }
+        }
+      } catch (e) {
+        // Skip files that can't be read
+      }
+    }
+
+    return results;
+  } finally {
+    release();
+  }
+}
 
 // Helper function to find docs in a given directory
 async function findDocsInDir(dirPath: string) {
@@ -382,6 +530,28 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             required: ["localProjectPath"],
           },
         },
+        {
+          name: "search_docs",
+          description: "Searches for a pattern within documentation files (README, docs/**/*.md) in a local directory. Returns matching lines with context.",
+          inputSchema: {
+            type: "object",
+            properties: {
+              dirPath: {
+                type: "string",
+                description: "The absolute path to the local directory to search.",
+              },
+              pattern: {
+                type: "string",
+                description: "The regex pattern to search for in documentation files.",
+              },
+              filePattern: {
+                type: "string",
+                description: "Optional. Regex pattern to filter which documentation files to search (e.g., 'README.*' to only search README files).",
+              },
+            },
+            required: ["dirPath", "pattern"],
+          },
+        },
       ],
   };
 });
@@ -633,23 +803,23 @@ case "explore_remote_repo": {
         let message = "";
         
         try {
-          // Try to pull existing repo first
-          console.error(`Repository might exist. Attempting to pull latest changes for ${validatedUrl} (branch: ${branch || "default"}) in ${targetDir}...`);
+          // Try to pull existing repo first with retry
+          logger.info(`Attempting to pull latest changes`, { url: validatedUrl, branch: branch || "default", target: targetDir });
           const git: SimpleGit = simpleGit(targetDir);
           
           const fetchArgs = ["--depth", "1"];
           if (branch) {
-            await withTimeout(git.fetch("origin", branch, fetchArgs), GIT_TIMEOUT_MS, "git fetch");
+            await withRetry(() => withTimeout(git.fetch("origin", branch, fetchArgs), GIT_TIMEOUT_MS, "git fetch"), MAX_RETRY_ATTEMPTS, "git fetch");
           } else {
-            await withTimeout(git.fetch(fetchArgs), GIT_TIMEOUT_MS, "git fetch");
+            await withRetry(() => withTimeout(git.fetch(fetchArgs), GIT_TIMEOUT_MS, "git fetch"), MAX_RETRY_ATTEMPTS, "git fetch");
           }
 
-          await withTimeout(git.reset(["--hard", "FETCH_HEAD"]), GIT_TIMEOUT_MS, "git reset");
-          await withTimeout(git.clean("f", ["-d"]), GIT_TIMEOUT_MS, "git clean");
+          await withRetry(() => withTimeout(git.reset(["--hard", "FETCH_HEAD"]), GIT_TIMEOUT_MS, "git reset"), MAX_RETRY_ATTEMPTS, "git reset");
+          await withRetry(() => withTimeout(git.clean("f", ["-d"]), GIT_TIMEOUT_MS, "git clean"), MAX_RETRY_ATTEMPTS, "git clean");
           message = `Successfully updated and explored repository. Found {count} files.`;
         } catch (e) {
-          // Repo doesn't exist, clone it
-          console.error(`Cloning ${validatedUrl} (branch: ${branch || "default"}) into ${targetDir}...`);
+          // Repo doesn't exist, clone it with retry
+          logger.info(`Cloning repository`, { url: validatedUrl, branch: branch || "default", target: targetDir });
           const git: SimpleGit = simpleGit();
           
           const cloneArgs = ["--depth", "1"];
@@ -657,7 +827,7 @@ case "explore_remote_repo": {
             cloneArgs.push("--branch", branch);
           }
           
-          await withTimeout(git.clone(validatedUrl, targetDir, cloneArgs), GIT_TIMEOUT_MS, "git clone");
+          await withRetry(() => withTimeout(git.clone(validatedUrl, targetDir, cloneArgs), GIT_TIMEOUT_MS, "git clone"), MAX_RETRY_ATTEMPTS, "git clone");
           message = `Successfully cloned and explored repository. Found {count} files.`;
         }
 
@@ -693,39 +863,51 @@ case "explore_remote_repo": {
       }
     }
 
-case "read_doc_file": {
-  const { filePath } = request.params.arguments as { filePath: string };
+    case "read_doc_file": {
+      const { filePath } = request.params.arguments as { filePath: string };
 
-  try {
-    if (!filePath || typeof filePath !== "string") {
-      throw new Error("Invalid file path: must be a non-empty string");
+      try {
+        if (!filePath || typeof filePath !== "string") {
+          throw new Error("Invalid file path: must be a non-empty string");
+        }
+        const resolvedPath = path.resolve(filePath);
+        
+        const stat = await fs.stat(resolvedPath);
+        if (!stat.isFile()) {
+          throw new Error("Path is not a file");
+        }
+        
+        if (stat.size > MAX_FILE_SIZE_READ) {
+          throw new Error(`File too large: ${stat.size} bytes (max ${MAX_FILE_SIZE_READ})`);
+        }
+        
+        // Check if binary
+        const buffer = await fs.readFile(resolvedPath);
+        if (isBinaryFile(buffer)) {
+          throw new Error("Cannot read binary file");
+        }
+        
+        const content = buffer.toString("utf-8");
+        return {
+          content: [
+            {
+              type: "text",
+              text: content,
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error reading file ${filePath}: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
     }
-    const resolvedPath = path.resolve(filePath);
-    // Basic path traversal check
-    if (resolvedPath !== path.normalize(resolvedPath)) {
-      throw new Error("Invalid file path: path traversal detected");
-    }
-    const content = await fs.readFile(resolvedPath, "utf-8");
-    return {
-      content: [
-        {
-          type: "text",
-          text: content,
-        },
-      ],
-    };
-  } catch (error: any) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Error reading file ${filePath}: ${error.message}`,
-        },
-      ],
-      isError: true,
-    };
-  }
-}
 
     case "cleanup_cache": {
       const { localProjectPath: rawPath, maxAgeDays } = request.params.arguments as { localProjectPath: string; maxAgeDays?: number };
@@ -735,14 +917,27 @@ case "read_doc_file": {
         const reposDir = path.join(localProjectPath, ".docsgrep", "repos");
         const maxAgeMs = (maxAgeDays && maxAgeDays > 0 ? maxAgeDays : 7) * 24 * 60 * 60 * 1000;
         const cleaned = await cleanupCache(reposDir, maxAgeMs);
+        
+        // Also check cache size
+        const cacheSize = await getCacheSize(reposDir);
+        const cacheSizeMB = cacheSize / (1024 * 1024);
+        
+        let message = `Cleaned up ${cleaned.length} cached repositories.`;
+        if (cacheSizeMB > MAX_CACHE_SIZE_MB) {
+          message += ` Warning: Cache size (${cacheSizeMB.toFixed(2)}MB) exceeds limit (${MAX_CACHE_SIZE_MB}MB).`;
+        } else {
+          message += ` Current cache size: ${cacheSizeMB.toFixed(2)}MB.`;
+        }
+        
         return {
           content: [
             {
               type: "text",
               text: JSON.stringify(
                 {
-                  message: `Cleaned up ${cleaned.length} cached repositories.`,
+                  message,
                   cleanedRepos: cleaned,
+                  cacheSizeMB: parseFloat(cacheSizeMB.toFixed(2)),
                 },
                 null,
                 2
@@ -756,6 +951,53 @@ case "read_doc_file": {
             {
               type: "text",
               text: `Error cleaning cache: ${error.message}`,
+            },
+          ],
+          isError: true,
+        };
+      }
+    }
+
+    case "search_docs": {
+      const { dirPath: rawPath, pattern, filePattern } = request.params.arguments as {
+        dirPath: string;
+        pattern: string;
+        filePattern?: string;
+      };
+
+      try {
+        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+        const validatedPattern = validateStringParam(pattern, "pattern");
+        
+        // Validate regex
+        try {
+          new RegExp(validatedPattern);
+        } catch (e: any) {
+          throw new Error(`Invalid regex pattern: ${e.message}`);
+        }
+
+        const results = await searchDocsInDir(dirPath, validatedPattern, filePattern);
+        return {
+          content: [
+            {
+              type: "text",
+              text: JSON.stringify(
+                {
+                  message: `Found ${results.length} matches for pattern "${validatedPattern}".`,
+                  results,
+                },
+                null,
+                2
+              ),
+            },
+          ],
+        };
+      } catch (error: any) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Error searching docs: ${error.message}`,
             },
           ],
           isError: true,

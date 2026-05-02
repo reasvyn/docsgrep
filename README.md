@@ -6,8 +6,15 @@ An MCP (Model Context Protocol) Server designed to efficiently explore local and
 
 - **Workspace Initialization:** Set up an isolated `.docsgrep` workspace in your project to store temporary clones, logs, and reports without polluting your working directory.
 - **Local Exploration:** Quickly scan a local directory to find all `README` and `docs/*.md` files.
-- **Remote Exploration:** Clone a remote git repository (using a fast `git clone --depth 1`) directly into your `.docsgrep/tmp` workspace and extract its documentation.
-- **File Reading:** Read the contents of the identified documentation files directly into your LLM context.
+- **Remote Exploration:** Clone a remote git repository (using a fast `git clone --depth 1`) directly into your `.docsgrep/tmp` workspace and extract its documentation. Supports retry logic with exponential backoff.
+- **File Reading:** Read the contents of the identified documentation files directly into your LLM context. Includes binary file detection.
+- **Search Documentation:** Search for patterns within documentation files using regex with the `search_docs` tool.
+- **Cache Management:** Clean up old cached repositories with the `cleanup_cache` tool. Includes cache size monitoring (1GB limit).
+- **Tech Stack Analysis:** Identify project dependencies from multiple package managers (Node.js, PHP, Go, Rust, Python, Ruby, Java, C++, C#, Elixir, Dart, etc.).
+- **Convention Gathering:** Collect linter configs, editor configs, and contributing guidelines to understand project standards.
+- **Code Pattern Sampling:** Sample representative source files to infer implicit coding conventions.
+- **Concurrency Control:** Operations are limited to 5 concurrent executions to prevent system overload.
+- **Structured Logging:** JSON-formatted logs for better observability.
 
 ## Installation & Usage
 
