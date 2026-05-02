@@ -133,3 +133,9 @@ export interface CatchFossilsArgs {
   sinceCommit?: string;
   priorityMode?: "impact" | "recency";
 }
+
+export interface GaugeDocsArgs {
+  dirPath: string;
+  filePatterns?: string[];
+  publicOnly?: boolean;
+}

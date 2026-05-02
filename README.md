@@ -8,7 +8,7 @@ Modern codebases are massive, but documentation is often fragmented or stale. **
 
 ---
 
-## 🛠️ Professional Tool Suite (23 Tools)
+## 🛠️ Professional Tool Suite (24 Tools)
 
 ### 1. Intelligence & Search 🧠
 | Tool | Description |
@@ -22,6 +22,7 @@ Modern codebases are massive, but documentation is often fragmented or stale. **
 | Tool | Description |
 |---|---|
 | `verify_truth` | **Signature Validation**: Checks if documented functions match the code. |
+| `gauge_docs` | **Docblock Coverage**: Measures how much of the code is documented. |
 | `catch_bugs` | **Bug Catcher**: Finds logic flaws with smart noise reduction. |
 | `spot_delta` | **Delta Analysis**: Compares documentation claims against reality. |
 | `smell_stale` | **Staleness Detection**: Identifies docs that are outdated or out of sync. |

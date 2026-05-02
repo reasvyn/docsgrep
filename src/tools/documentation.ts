@@ -23,6 +23,7 @@ import {
   type HuntRelatedArgs,
   type SmellStaleArgs,
   type SenseSurroundingsArgs,
+  type GaugeDocsArgs,
 } from "../types/tools.js";
 
 // Helper function to find docs in a given directory (language-agnostic, all .md files)
@@ -767,3 +768,162 @@ export async function handleSenseSurroundings(
     };
   }
 }
+
+export async function handleGaugeDocs(
+  args: GaugeDocsArgs
+): Promise<McpToolResponse> {
+  const { dirPath: rawPath, filePatterns, publicOnly } = args;
+
+  try {
+    const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+    const isPublicOnly = publicOnly !== false;
+
+    // Source file patterns to scan for docblocks
+    const patterns = filePatterns || [
+      "src/**/*.{js,ts,jsx,tsx,php,py,rb,go,rs,java,cpp,c,cs,swift,dart}",
+      "lib/**/*.{js,ts,jsx,tsx,php,py,rb,go,rs,java,cpp,c,cs,swift,dart}",
+      "app/**/*.{js,ts,jsx,tsx,php,py,rb,go,rs,java,cpp,c,cs,swift,dart}",
+    ];
+
+    const release = await operationLimiter.acquire();
+    try {
+      const files = await glob(patterns, {
+        cwd: dirPath,
+        ignore: [
+          "**/node_modules/**",
+          "**/.git/**",
+          "**/dist/**",
+          "**/build/**",
+          "**/*.test.*",
+          "**/*.spec.*",
+          "**/test/**",
+          "**/tests/**",
+        ],
+      });
+
+      let totalItems = 0;
+      let documentedItems = 0;
+      const undocumentedList: Array<{
+        file: string;
+        line: number;
+        item: string;
+        type: string;
+      }> = [];
+
+      for (const file of files) {
+        const fullPath = path.join(dirPath, file);
+        try {
+          const content = await fs.readFile(fullPath, "utf-8");
+          const lines = content.split("\n");
+          const ext = path.extname(file).toLowerCase();
+
+          // Regex patterns for documentable items (functions, classes, etc.)
+          let itemRegex: RegExp;
+          if (ext === ".py") {
+            itemRegex = /^\s*(?:def|class)\s+(\w+)/;
+          } else if (ext === ".go") {
+            itemRegex = /\bfunc\s+(?:\([^)]+\)\s+)?(\w+)/;
+          } else if (ext === ".rs") {
+            itemRegex = /^\s*(?:pub\s+)?(?:async\s+)?fn\s+(\w+)/;
+          } else {
+            // General C-style (JS, TS, PHP, Java, etc.)
+            itemRegex = /^\s*(?:export\s+)?(?:public|protected|private|static|async)?\s*(?:function|class|method|interface|enum|fn)\s+(\w+)/;
+            if (isPublicOnly) {
+              itemRegex = /^\s*(?:export|public)\s+(?:async\s+)?(?:function|class|method|interface|enum)\s+(\w+)/;
+            }
+          }
+
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i];
+            const match = line.match(itemRegex);
+
+            if (match) {
+              const itemName = match[1];
+              const itemType = line.includes("class") ? "class" : "function";
+              totalItems++;
+
+              let hasDoc = false;
+
+              if (ext === ".py") {
+                // Python: docstring is inside the block on the next line(s)
+                const nextLine = lines[i + 1]?.trim();
+                if (nextLine && (nextLine.startsWith('"""') || nextLine.startsWith("'''"))) {
+                  hasDoc = true;
+                }
+              } else {
+                // Others: docblock is above the item
+                // Check 3 lines above
+                for (let j = 1; j <= 3; j++) {
+                  const prevLine = lines[i - j]?.trim();
+                  if (prevLine) {
+                    if (prevLine.endsWith("*/") || prevLine.startsWith("///") || (ext === ".go" && prevLine.startsWith("//"))) {
+                      hasDoc = true;
+                      break;
+                    }
+                    // If we hit code that isn't a comment, stop searching
+                    if (!prevLine.startsWith("/") && !prevLine.startsWith("*")) {
+                      break;
+                    }
+                  }
+                }
+              }
+
+              if (hasDoc) {
+                documentedItems++;
+              } else {
+                undocumentedList.push({
+                  file,
+                  line: i + 1,
+                  item: itemName,
+                  type: itemType,
+                });
+              }
+            }
+          }
+        } catch (e) {
+          // Skip
+        }
+      }
+
+      const coverage = totalItems > 0 ? (documentedItems / totalItems) * 100 : 100;
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                message: `Documentation coverage: ${coverage.toFixed(
+                  2
+                )}% (${documentedItems}/${totalItems} items documented).`,
+                summary: {
+                  totalItems,
+                  documentedItems,
+                  undocumentedItems: totalItems - documentedItems,
+                  coveragePercentage: parseFloat(coverage.toFixed(2)),
+                },
+                undocumentedList: undocumentedList.slice(0, 100),
+                note:
+                  undocumentedList.length > 100
+                    ? "List limited to 100 items."
+                    : undefined,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } finally {
+      release();
+    }
+  } catch (error: any) {
+    return {
+      content: [
+        { type: "text", text: `Error gauging doc coverage: ${error.message}` },
+      ],
+      isError: true,
+    };
+  }
+}
+

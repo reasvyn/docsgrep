@@ -96,6 +96,10 @@ export async function handleDocTheTools(
       description: "Detect artifacts needing updates",
       example: `catch_fossils(dirPath: "/home/user/myproject")`,
     },
+    gauge_docs: {
+      description: "Measure documentation coverage (docblocks) in code",
+      example: `gauge_docs(dirPath: "/home/user/myproject", publicOnly: true)`,
+    },
   };
 
   if (toolName) {

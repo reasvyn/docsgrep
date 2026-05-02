@@ -50,7 +50,7 @@ export async function handleSyncDocs(
           changedFiles = [
             ...status.modified,
             ...status.created,
-            ...status.renamed.map((r) => r.to),
+            ...status.renamed.map((r: any) => r.to),
           ].map((f: string) => path.join(dirPath, f));
         } catch (e) {
           // Git not available

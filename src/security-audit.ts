@@ -511,14 +511,6 @@ export async function performSecurityAudit(dirPath: string, filePatterns?: strin
           const stat = await fs.stat(fullPath);
           if (!stat.isFile() || stat.size > 500000) continue; // Skip >500KB
           
-          // Skip self-checking: don't include docsgrep's own source files
-          if (fullPath.includes('security-audit.ts') ||
-              fullPath.includes('best-practices.ts') ||
-              fullPath.includes('audit.ts') ||
-              (fullPath.includes('index.ts') && fullPath.includes('/src/'))) {
-            continue;
-          }
-          
           const content = await fs.readFile(fullPath, 'utf-8');
           files.push({ path: fullPath, content });
         } catch (e) {

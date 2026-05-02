@@ -26,6 +26,7 @@ This directory contains detailed documentation for each tool available in the **
 
 ### Maintenance & Sync
 - [👃 `smell_stale`](tools/smell_stale.md) - Identify outdated or out-of-sync docs.
+- [📏 `gauge_docs`](tools/gauge_docs.md) - Measure docblock coverage in source code.
 - [🔄 `sync_docs`](tools/sync_docs.md) - Update documentation based on code changes.
 - [✅ `verify_truth`](tools/verify_truth.md) - Verify doc accuracy against source code.
 - [📊 `spot_delta`](tools/spot_delta.md) - Detail differences between docs and code.

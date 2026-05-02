@@ -39,6 +39,7 @@ import {
   handleHuntRelated,
   handleSmellStale,
   handleSenseSurroundings,
+  handleGaugeDocs,
 } from "./tools/documentation.js";
 import {
   handleSyncDocs,
@@ -733,6 +734,29 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["dirPath"],
         },
       },
+      {
+        name: "gauge_docs",
+        description: "Measures documentation coverage (docblocks) across the codebase. Language-agnostic support for JS, TS, PHP, Python, Go, Rust, etc.",
+        inputSchema: {
+          type: "object",
+          properties: {
+            dirPath: {
+              type: "string",
+              description: "The absolute path to the source directory.",
+            },
+            filePatterns: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to filter source files.",
+            },
+            publicOnly: {
+              type: "boolean",
+              description: "Optional. Only count public APIs (exported/public). Defaults to true.",
+            },
+          },
+          required: ["dirPath"],
+        },
+      },
     ],
   };
 });
@@ -788,6 +812,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return await handleDocTheTools(args as any);
       case "catch_fossils":
         return await handleCatchFossils(args as any);
+      case "gauge_docs":
+        return await handleGaugeDocs(args as any);
       default:
         throw new McpError(
           ErrorCode.MethodNotFound,
