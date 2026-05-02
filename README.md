@@ -70,15 +70,22 @@ Add the following to your `claude_desktop_config.json`:
      - `localProjectPath` (string, optional): The absolute path to your local project. If provided, the repo will be cloned into `[localProjectPath]/.docsgrep/repos/` instead of the global OS temp directory.
 
  7. `read_doc_file`
-    - **Description**: Reads the contents of a specific documentation file. Includes path traversal protection.
+    - **Description**: Reads the contents of a specific documentation or README file. Includes binary file detection and path validation.
     - **Arguments**:
       - `filePath` (string): The absolute path to the file to read.
 
  8. `cleanup_cache`
-    - **Description**: Cleans up old cached repositories in the `.docsgrep` workspace. Removes repos older than the specified max age (default 7 days).
+    - **Description**: Cleans up old cached repositories in the `.docsgrep` workspace. Removes repos older than the specified max age (default 7 days). Monitors cache size (1GB limit).
     - **Arguments**:
       - `localProjectPath` (string): The absolute path to the local project containing `.docsgrep` workspace.
       - `maxAgeDays` (number, optional): Maximum age in days for cached repos (default: 7).
+
+ 9. `search_docs`
+    - **Description**: Searches for a regex pattern within documentation files (README, docs/**/*.md) in a local directory. Returns matching lines with file path and line number.
+    - **Arguments**:
+      - `dirPath` (string): The absolute path to the local directory to search.
+      - `pattern` (string): The regex pattern to search for in documentation files.
+      - `filePattern` (string, optional): Regex pattern to filter which documentation files to search (e.g., 'README.*').
 
 ## Local Development
 
@@ -86,6 +93,25 @@ Add the following to your `claude_desktop_config.json`:
 2. Run `npm install`.
 3. Run `npm run build` to compile the TypeScript files.
 4. Run `npm run dev` or use the test script to test locally.
+5. Run `npm run test` to run the test suite.
+6. Run `npm run test:coverage` to check test coverage.
+
+## Testing
+
+The project uses Vitest for testing. Run the following commands:
+
+```bash
+npm run test          # Run tests once
+npm run test:watch    # Run tests in watch mode
+npm run test:coverage # Run tests with coverage report
+```
+
+## Security
+
+- All file paths are validated to prevent path traversal attacks.
+- Repository URLs are validated to ensure they use safe protocols (http, https, git, ssh).
+- Binary files are detected and rejected when reading.
+- Concurrent operations are limited to prevent resource exhaustion.
 
 ## Community
 
