@@ -1,0 +1,94 @@
+# @anovise/docsgrep
+
+An MCP (Model Context Protocol) Server designed to efficiently explore local and remote codebases to extract context and documentation. It specifically focuses on locating and reading `README` files and documentation inside `docs/` directories.
+
+## Features
+
+- **Workspace Initialization:** Set up an isolated `.docsgrep` workspace in your project to store temporary clones, logs, and reports without polluting your working directory.
+- **Local Exploration:** Quickly scan a local directory to find all `README` and `docs/*.md` files.
+- **Remote Exploration:** Clone a remote git repository (using a fast `git clone --depth 1`) directly into your `.docsgrep/tmp` workspace and extract its documentation.
+- **File Reading:** Read the contents of the identified documentation files directly into your LLM context.
+
+## Installation & Usage
+
+You can use this MCP server directly via `npx` in any MCP client (like Claude Desktop) without needing to install it globally.
+
+### Claude Desktop Configuration
+
+Add the following to your `claude_desktop_config.json`:
+
+```json
+{
+  "mcpServers": {
+    "docsgrep": {
+      "command": "npx",
+      "args": ["-y", "@anovise/docsgrep"]
+    }
+  }
+}
+```
+
+## Available Tools
+
+1. `init_workspace`
+   - **Description**: Initializes a `.docsgrep` workspace in the specified project directory. Automatically updates `.gitignore` to prevent these temporary files from being tracked.
+   - **Arguments**:
+     - `projectPath` (string): The absolute path to the local project root.
+
+2. `analyze_project_tech_stack`
+   - **Description**: Analyzes a local directory to identify the project's technology stack by reading package manager files (e.g., `package.json`, `composer.json`, `go.mod`, `Cargo.toml`, etc.). Provides the contents of these files (up to 50KB each) to give the LLM instant context on project dependencies.
+   - **Arguments**:
+     - `dirPath` (string): The absolute path to the local directory.
+
+3. `gather_project_conventions`
+   - **Description**: Gathers project conventions, linters, and architectural guidelines using fuzzy matching (e.g., `**/*lint*`, `**/*style*.md`, `CONTRIBUTING.md`, `.editorconfig`) to provide context for AI-driven code quality audits. Completely agnostic to the tech stack.
+   - **Arguments**:
+     - `dirPath` (string): The absolute path to the local directory to scan.
+
+4. `sample_codebase_patterns`
+   - **Description**: Samples a few representative source code files from the project. Use this when a project lacks explicit documentation or linter configs to allow the AI to infer implicit coding conventions and style directly from the code.
+   - **Arguments**:
+     - `dirPath` (string): The absolute path to the local directory to sample.
+
+5. `explore_local_docs`
+   - **Description**: Explores a local directory to find README files and documentation inside `docs/` folders.
+   - **Arguments**:
+     - `dirPath` (string): The absolute path to the local directory.
+
+6. `explore_remote_repo`
+   - **Description**: Clones a remote git repository and finds documentation. Leverages smart caching (doing a `git pull` if it already exists) based on MD5 hashes of repo URLs to make subsequent runs instantaneous without re-cloning.
+   - **Arguments**:
+     - `repoUrl` (string): The URL of the git repository.
+     - `branch` (string, optional): Specific branch to explore (e.g., 'docs').
+     - `localProjectPath` (string, optional): The absolute path to your local project. If provided, the repo will be cloned into `[localProjectPath]/.docsgrep/repos/` instead of the global OS temp directory.
+
+ 7. `read_doc_file`
+    - **Description**: Reads the contents of a specific documentation file. Includes path traversal protection.
+    - **Arguments**:
+      - `filePath` (string): The absolute path to the file to read.
+
+ 8. `cleanup_cache`
+    - **Description**: Cleans up old cached repositories in the `.docsgrep` workspace. Removes repos older than the specified max age (default 7 days).
+    - **Arguments**:
+      - `localProjectPath` (string): The absolute path to the local project containing `.docsgrep` workspace.
+      - `maxAgeDays` (number, optional): Maximum age in days for cached repos (default: 7).
+
+## Local Development
+
+1. Clone the repository.
+2. Run `npm install`.
+3. Run `npm run build` to compile the TypeScript files.
+4. Run `npm run dev` or use the test script to test locally.
+
+## Community
+
+- For bugs and feature requests, please open an issue.
+- Please read our [Contributing Guidelines](CONTRIBUTING.md) and [Code of Conduct](CODE_OF_CONDUCT.md).
+
+## Contact
+
+For public communication, inquiries, or support, please contact: **reasvyn@gmail.com**
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
