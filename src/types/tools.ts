@@ -18,19 +18,24 @@ export interface SetupCampArgs {
 
 export interface SpyStackArgs {
   dirPath: string;
+  excludePath?: string[];
 }
 
 export interface SniffStyleArgs {
   dirPath: string;
+  excludePath?: string[];
 }
 
 export interface HuntDocsArgs {
   dirPath: string;
+  includePath?: string[];
+  excludePath?: string[];
 }
 
 export interface FetchRepoArgs {
   repoUrl: string;
   branch?: string;
+  tag?: string;
   localProjectPath?: string;
   authToken?: string;
   sshKeyPath?: string;
@@ -50,12 +55,16 @@ export interface GrepDocsArgs {
   pattern: string;
   filePattern?: string;
   contextLines?: number;
+  includePath?: string[];
+  excludePath?: string[];
 }
 
 export interface LintCodeArgs {
   dirPath: string;
-  filePatterns?: string[];
+  filePatterns?: string[]; // Kept for backward compatibility, will map to includePath
   focusAreas?: string[];
+  includePath?: string[];
+  excludePath?: string[];
 }
 
 export interface AskLintArgs {
@@ -64,7 +73,9 @@ export interface AskLintArgs {
 
 export interface GuardSecurityArgs {
   dirPath: string;
-  filePatterns?: string[];
+  filePatterns?: string[]; // Kept for backward compatibility
+  includePath?: string[];
+  excludePath?: string[];
 }
 
 export interface AskGuardArgs {
@@ -73,13 +84,17 @@ export interface AskGuardArgs {
 
 export interface CatchBugsArgs {
   dirPath: string;
-  filePatterns?: string[];
+  filePatterns?: string[]; // Kept for backward compatibility
+  includePath?: string[];
+  excludePath?: string[];
 }
 
 export interface FathomMeaningArgs {
   dirPath: string;
   query: string;
   topK?: number;
+  includePath?: string[];
+  excludePath?: string[];
 }
 
 export interface TldrDocsArgs {
@@ -91,36 +106,48 @@ export interface HuntRelatedArgs {
   dirPath: string;
   topic: string;
   threshold?: number;
+  includePath?: string[];
+  excludePath?: string[];
 }
 
 export interface SmellStaleArgs {
   dirPath: string;
   maxAgeDays?: number;
   compareWithCode?: boolean;
+  includePath?: string[];
+  excludePath?: string[];
 }
 
 export interface SyncDocsArgs {
   dirPath: string;
   filePaths?: string[];
   updateMode?: "create" | "update" | "both";
+  includePath?: string[];
+  excludePath?: string[];
 }
 
 export interface VerifyTruthArgs {
   dirPath: string;
   docPath: string;
   strictMode?: boolean;
+  includePath?: string[];
+  excludePath?: string[];
 }
 
 export interface SenseSurroundingsArgs {
   dirPath: string;
   currentFilePath: string;
   contextDepth?: "minimal" | "standard" | "deep";
+  includePath?: string[];
+  excludePath?: string[];
 }
 
 export interface SpotDeltaArgs {
   dirPath: string;
   docPath: string;
   includeCodeSnippets?: boolean;
+  includePath?: string[];
+  excludePath?: string[];
 }
 
 export interface DocTheToolsArgs {
@@ -132,10 +159,14 @@ export interface CatchFossilsArgs {
   dirPath: string;
   sinceCommit?: string;
   priorityMode?: "impact" | "recency";
+  includePath?: string[];
+  excludePath?: string[];
 }
 
 export interface GaugeDocsArgs {
   dirPath: string;
   filePatterns?: string[];
   publicOnly?: boolean;
+  includePath?: string[];
+  excludePath?: string[];
 }

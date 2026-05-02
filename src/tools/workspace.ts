@@ -7,6 +7,7 @@ import * as path from "node:path";
 import * as os from "node:os";
 import { validateStringParam, validateDirPath } from "../utils/validation.js";
 import { logger } from "../utils/logger.js";
+import { AppInfo } from "../utils/app-info.js";
 import { getCacheSize, cleanupCache } from "../utils/file.js";
 import { MAX_CACHE_SIZE_MB } from "../utils/constants.js";
 import {
@@ -62,7 +63,7 @@ export async function handleSetupCamp(
       initializedAt: new Date().toISOString(),
       projectPath: projectPath,
       workspacePath: workspacePath,
-      version: "0.2.1",
+      version: AppInfo.version,
       storageType: usedSystemTemp ? "system-temp" : "project-local",
     };
     await fs.writeFile(

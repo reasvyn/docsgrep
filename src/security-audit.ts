@@ -1,7 +1,7 @@
 // Enterprise-Grade Security Audit - Language Agnostic
 // Covers OWASP Top 10, ISO/IEC 27001, and industry security standards
 
-import { DEFAULT_IGNORE_PATTERNS } from "./utils/constants.js";
+import { getIgnorePatterns } from "./utils/file.js";
 
 export interface SecurityIssue {
   file: string;
@@ -339,10 +339,10 @@ class SecurityAnalyzer {
   }
 
   // Check dependency files for vulnerabilities
-  async checkDependencies(dirPath: string): Promise<SecurityAuditReport['dependencyAnalysis']> {
+  async checkDependencies(dirPath: string, excludePath?: string[]): Promise<SecurityAuditReport['dependencyAnalysis']> {
     const fs = await import('node:fs/promises');
     const path = await import('node:path');
-    const glob = (await import('glob')).glob;
+    const { FileScanner } = await import("./tools/base.js");
 
     const result: SecurityAuditReport['dependencyAnalysis'] = {
       hasLockFile: false,
@@ -352,10 +352,8 @@ class SecurityAnalyzer {
     };
 
     // Check for lock files
-    const lockFiles = await glob('**/*lock*', {
-      cwd: dirPath,
-      ignore: ['**/node_modules/**', '**/.git/**'],
-    });
+    const lockFiles = await FileScanner.findFiles({ dirPath, excludePath, includePath: ['**/*lock*'] }, ['**/*lock*']);
+    result.hasLockFile = lockFiles.length > 0;
     result.hasLockFile = lockFiles.length > 0;
 
     // Parse package.json for dependencies
@@ -474,37 +472,28 @@ class SecurityAnalyzer {
 }
 
 // Main security audit function
-export async function performSecurityAudit(dirPath: string, filePatterns?: string[]): Promise<SecurityAuditReport> {
+export async function performSecurityAudit(
+  dirPath: string,
+  includePath?: string[],
+  excludePath?: string[]
+): Promise<SecurityAuditReport> {
+
   const analyzer = new SecurityAnalyzer();
   
   // Step 1: Find source files
-  const patterns = filePatterns || [
+  const { FileScanner } = await import("./tools/base.js");
+  const fs = await import('node:fs/promises');
+  const path = await import('node:path');
+  const defaultPatterns = [
     '**/*.{js,ts,jsx,tsx,py,go,rs,rb,java,cpp,c,cs,php,swift,dart}',
     '**/*.{yml,yaml,json,xml,conf,ini,env,cfg}',
     '**/Dockerfile*',
     '**/*.{sh,bash}',
   ];
 
-  const glob = (await import('glob')).glob;
-  const fs = await import('node:fs/promises');
-  const path = await import('node:path');
+  const matches = await FileScanner.findFiles({ dirPath, includePath, excludePath }, defaultPatterns);
 
    const files: Array<{ path: string; content: string }> = [];
-   
-   for (const pattern of patterns) {
-     const matches = await glob(pattern, {
-       cwd: dirPath,
-       ignore: [
-         ...DEFAULT_IGNORE_PATTERNS,
-         // Exclude docsgrep's own source files to prevent false positives
-         '**/src/security-audit.ts',
-         '**/src/index.ts',
-         '**/src/best-practices.ts',
-         '**/src/audit.ts',
-         '**/build/**',
-       ],
-     });
-
     for (const match of matches.slice(0, 50)) {
         try {
           const fullPath = path.join(dirPath, match);
@@ -517,7 +506,6 @@ export async function performSecurityAudit(dirPath: string, filePatterns?: strin
           // Skip
         }
       }
-   }
 
   // Step 2: Run all security checks
   const allIssues: SecurityIssue[] = [];
@@ -551,7 +539,7 @@ export async function performSecurityAudit(dirPath: string, filePatterns?: strin
   }
 
   // Step 3: Dependency analysis
-  const dependencyAnalysis = await analyzer.checkDependencies(dirPath);
+  const dependencyAnalysis = await analyzer.checkDependencies(dirPath, excludePath);
 
   // Step 4: OWASP Top 10 summary
   const owaspCategories = Object.keys(analyzer['owaspPatterns']);

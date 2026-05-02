@@ -2,6 +2,7 @@
  * Documentation tools: hunt_docs, peek_file, grep_docs, fathom_meaning, tldr_docs, hunt_related, smell_stale, sense_surroundings
  */
 import { glob } from "glob";
+import { getIgnorePatterns } from "../utils/file.js";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import {
@@ -26,22 +27,39 @@ import {
   type GaugeDocsArgs,
 } from "../types/tools.js";
 
+import { BaseTool, FileScanner } from "./base.js";
+
+class HuntDocsTool extends BaseTool<HuntDocsArgs> {
+  protected name = "hunt_docs";
+
+  protected async run(args: HuntDocsArgs): Promise<McpToolResponse> {
+    const dirPath = validateDirPath(validateStringParam(args.dirPath, "dirPath"));
+    const files = await findDocsInDir(dirPath, args.includePath, args.excludePath);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              message: `Found ${files.length} documentation files in local directory.`,
+              files,
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  }
+}
+
+export async function handleHuntDocs(args: HuntDocsArgs): Promise<McpToolResponse> {
+  return new HuntDocsTool().execute(args);
+}
+
 // Helper function to find docs in a given directory (language-agnostic, all .md files)
-export async function findDocsInDir(dirPath: string): Promise<string[]> {
-  const allMdFiles = await glob("**/*.md", {
-    cwd: dirPath,
-    nocase: true,
-    ignore: [
-      "**/node_modules/**",
-      "**/.git/**",
-      "**/dist/**",
-      "**/build/**",
-      "**/target/**",
-      "**/vendor/**",
-      "**/.next/**",
-      "**/.nuxt/**",
-    ],
-  });
+export async function findDocsInDir(dirPath: string, includePath?: string[], excludePath?: string[]): Promise<string[]> {
+  const allMdFiles = await FileScanner.findFiles({ dirPath, includePath, excludePath }, ["**/*.md"]);
 
   const uniqueFiles = Array.from(new Set(allMdFiles));
   return uniqueFiles.map((file) => path.join(dirPath, file));
@@ -71,47 +89,6 @@ function getMatchPrecisionScore(line: string, searchRegex: RegExp): number {
     return wordBoundaryRegex.test(line) ? 20 : 5;
   } catch {
     return 5;
-  }
-}
-
-export async function handleHuntDocs(
-  args: HuntDocsArgs
-): Promise<McpToolResponse> {
-  const { dirPath: rawPath } = args;
-
-  try {
-    const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-    const stat = await fs.stat(dirPath);
-    if (!stat.isDirectory()) {
-      throw new Error("Provided path is not a directory");
-    }
-
-    const files = await findDocsInDir(dirPath);
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            {
-              message: `Found ${files.length} documentation files in local directory.`,
-              files,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
-  } catch (error: any) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Error exploring local directory: ${error.message}`,
-        },
-      ],
-      isError: true,
-    };
   }
 }
 
@@ -787,18 +764,10 @@ export async function handleGaugeDocs(
 
     const release = await operationLimiter.acquire();
     try {
+      const ignorePatterns = await getIgnorePatterns(dirPath);
       const files = await glob(patterns, {
         cwd: dirPath,
-        ignore: [
-          "**/node_modules/**",
-          "**/.git/**",
-          "**/dist/**",
-          "**/build/**",
-          "**/*.test.*",
-          "**/*.spec.*",
-          "**/test/**",
-          "**/tests/**",
-        ],
+        ignore: ignorePatterns,
       });
 
       let totalItems = 0;

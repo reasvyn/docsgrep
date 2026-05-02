@@ -69,6 +69,12 @@ The perfect companion for AI Agents.
 - **Dependency Tracking**: Reads your `import` statements to suggest relevant docs.
 - **Hierarchical Context**: Understands README importance and directory relationships.
 
+### 🎯 Surgical Scope Control
+All scanning tools now support advanced filtering:
+- **`includePath`**: Target specific modules or files (e.g., `["src/auth/**"]`).
+- **`excludePath`**: Skip irrelevant noise, merged with your project's `.gitignore`.
+- **Recursive Globbing**: Full support for standard glob patterns.
+
 ---
 
 ## 📦 Installation

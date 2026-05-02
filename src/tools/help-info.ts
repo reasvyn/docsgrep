@@ -2,6 +2,7 @@
  * Help & info tools: doc_the_tools, spy_stack, sniff_style, fetch_repo
  */
 import { glob } from "glob";
+import { getIgnorePatterns } from "../utils/file.js";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { validateStringParam, validateDirPath } from "../utils/validation.js";
@@ -259,7 +260,7 @@ export async function handleSniffStyle(
 export async function handleFetchRepo(
   args: FetchRepoArgs
 ): Promise<McpToolResponse> {
-  const { repoUrl, branch, localProjectPath, authToken, sshKeyPath } = args;
+  const { repoUrl, branch, tag, localProjectPath, authToken, sshKeyPath } = args;
 
   try {
     // Validate repoUrl
@@ -275,13 +276,14 @@ export async function handleFetchRepo(
       );
     }
 
-    const targetDir = getRepoCachePath(validatedUrl, branch, localProjectPath);
+    const targetDir = getRepoCachePath(validatedUrl, { branch, tag, localProjectPath });
 
     // Ensure cache directory exists
     await fs.mkdir(path.dirname(targetDir), { recursive: true });
 
     await cloneOrUpdateRepo(validatedUrl, targetDir, {
       branch,
+      tag,
       authToken,
       sshKeyPath,
     });
@@ -371,17 +373,11 @@ async function analyzeProjectContext(dirPath: string): Promise<Record<string, st
   ];
 
   const allPatterns = commonFiles;
+  const ignorePatterns = await getIgnorePatterns(dirPath);
   const foundFiles = await glob(allPatterns, {
     cwd: dirPath,
     nocase: true,
-    ignore: [
-      "**/node_modules/**",
-      "**/vendor/**",
-      "**/.git/**",
-      "**/target/**",
-      "**/dist/**",
-      "**/build/**",
-    ],
+    ignore: ignorePatterns,
   });
 
   const analysis: Record<string, string> = {};

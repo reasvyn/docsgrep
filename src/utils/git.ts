@@ -15,6 +15,7 @@ export async function cloneOrUpdateRepo(
   targetDir: string,
   options: {
     branch?: string;
+    tag?: string;
     authToken?: string;
     sshKeyPath?: string;
   } = {}
@@ -36,6 +37,9 @@ export async function cloneOrUpdateRepo(
     logger.info("Using SSH key authentication", { keyPath: resolvedKeyPath });
   }
 
+  // Determine the target version (tag takes precedence over branch)
+  const targetVersion = options.tag || options.branch;
+
   try {
     // Check if repo already exists in cache
     let repoExists = false;
@@ -49,16 +53,25 @@ export async function cloneOrUpdateRepo(
 
     if (repoExists) {
       // Update existing repo
-      logger.info(`Updating cached repository`, { url: repoUrl, target: targetDir });
+      logger.info(`Updating cached repository`, { url: repoUrl, target: targetDir, version: targetVersion });
       const git: SimpleGit = simpleGit(targetDir, gitOptions);
       
       const fetchArgs = ["--depth", "1"];
-      if (options.branch) {
-        await withRetry(
-          () => withTimeout(git.fetch("origin", options.branch!, fetchArgs), GIT_TIMEOUT_MS, "git fetch"),
-          MAX_RETRY_ATTEMPTS,
-          "git fetch"
-        );
+      if (targetVersion) {
+        // For tags, we might need to fetch tags explicitly or fetch the ref
+        if (options.tag) {
+          await withRetry(
+            () => withTimeout(git.fetch("origin", `refs/tags/${options.tag}:refs/tags/${options.tag}`, fetchArgs), GIT_TIMEOUT_MS, "git fetch tag"),
+            MAX_RETRY_ATTEMPTS,
+            "git fetch tag"
+          );
+        } else {
+          await withRetry(
+            () => withTimeout(git.fetch("origin", targetVersion, fetchArgs), GIT_TIMEOUT_MS, "git fetch"),
+            MAX_RETRY_ATTEMPTS,
+            "git fetch"
+          );
+        }
       } else {
         await withRetry(
           () => withTimeout(git.fetch(fetchArgs), GIT_TIMEOUT_MS, "git fetch"),
@@ -68,7 +81,7 @@ export async function cloneOrUpdateRepo(
       }
 
       await withRetry(
-        () => withTimeout(git.reset(["--hard", "FETCH_HEAD"]), GIT_TIMEOUT_MS, "git reset"),
+        () => withTimeout(git.reset(["--hard", options.tag ? options.tag : "FETCH_HEAD"]), GIT_TIMEOUT_MS, "git reset"),
         MAX_RETRY_ATTEMPTS,
         "git reset"
       );
@@ -79,12 +92,12 @@ export async function cloneOrUpdateRepo(
       );
     } else {
       // Clone new repo
-      logger.info(`Cloning repository`, { url: repoUrl, target: targetDir });
+      logger.info(`Cloning repository`, { url: repoUrl, target: targetDir, version: targetVersion });
       const git: SimpleGit = simpleGit(gitOptions);
       
       const cloneArgs = ["--depth", "1"];
-      if (options.branch) {
-        cloneArgs.push("--branch", options.branch);
+      if (targetVersion) {
+        cloneArgs.push("--branch", targetVersion);
       }
       
       await withRetry(
@@ -100,9 +113,13 @@ export async function cloneOrUpdateRepo(
 
 export function getRepoCachePath(
   repoUrl: string,
-  branch?: string,
-  localProjectPath?: string
+  options: {
+    branch?: string;
+    tag?: string;
+    localProjectPath?: string;
+  } = {}
 ): string {
+  const { branch, tag, localProjectPath } = options;
   let baseReposDir = path.join(os.tmpdir(), "docsgrep", "repos");
   
   if (localProjectPath) {
@@ -110,11 +127,12 @@ export function getRepoCachePath(
     baseReposDir = path.join(os.tmpdir(), "docsgrep", path.basename(validatedLocalPath), "repos");
   }
   
-  const hashInput = branch ? `${repoUrl}#${branch}` : repoUrl;
+  const version = tag || branch;
+  const hashInput = version ? `${repoUrl}#${version}` : repoUrl;
   const repoHash = crypto.createHash("md5").update(hashInput).digest("hex").substring(0, 8);
   const repoName = repoUrl.split("/").pop()?.replace(".git", "") || "repo";
-  const branchSuffix = branch ? `-${branch.replace(/[^a-zA-Z0-9]/g, "_")}` : "";
-  const targetDir = path.join(baseReposDir, `${repoName}${branchSuffix}-${repoHash}`);
+  const versionSuffix = version ? `-${version.replace(/[^a-zA-Z0-9]/g, "_")}` : "";
+  const targetDir = path.join(baseReposDir, `${repoName}${versionSuffix}-${repoHash}`);
   
   return targetDir;
 }

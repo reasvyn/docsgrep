@@ -11,7 +11,9 @@ This provides a metric similar to test coverage, helping teams maintain a high s
 ## Arguments
 
 - `dirPath` (string, **required**): The absolute path to the source directory.
-- `filePatterns` (string[], optional): Glob patterns to filter source files (e.g., `["src/**/*.ts"]`).
+- `includePath` (string[], optional): Glob patterns to limit the audit scope. Overrides `filePatterns`.
+- `excludePath` (string[], optional): Glob patterns to exclude from scanning. Merged with project `.gitignore`.
+- `filePatterns` (string[], optional): (Legacy) Alias for `includePath`.
 - `publicOnly` (boolean, optional): Only count public/exported APIs. Defaults to `true`.
 
 ## Example Usage

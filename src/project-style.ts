@@ -2,6 +2,7 @@
 // Provides comprehensive project style analysis
 
 import * as path from 'node:path';
+import { getIgnorePatterns } from './utils/file.js';
 
 export interface ProjectStyleReport {
   conventions: {
@@ -26,10 +27,11 @@ export interface ProjectStyleReport {
 }
 
 // Re-export functions from existing modules
-export async function gatherProjectConventions(dirPath: string): Promise<Record<string, string>> {
+export async function gatherProjectConventions(dirPath: string, excludePath?: string[]): Promise<Record<string, string>> {
   try {
     const { glob } = await import('glob');
     const fs = await import('node:fs/promises');
+    const ignorePatterns = await getIgnorePatterns(dirPath);
 
     const conventionPatterns = [
       // Markdown rules (fuzzy)
@@ -47,7 +49,7 @@ export async function gatherProjectConventions(dirPath: string): Promise<Record<
     const foundFiles = await glob(conventionPatterns, {
       cwd: dirPath,
       nocase: true,
-      ignore: ["**/node_modules/**", "**/vendor/**", "**/.git/**", "**/target/**", "**/dist/**", "**/build/**", "**/.next/**", "**/.nuxt/**"],
+      ignore: ignorePatterns,
     });
 
     const conventions: Record<string, string> = {};
@@ -73,11 +75,12 @@ export async function gatherProjectConventions(dirPath: string): Promise<Record<
   }
 }
 
-export async function sampleCodebasePatterns(dirPath: string): Promise<Record<string, string>> {
+export async function sampleCodebasePatterns(dirPath: string, excludePath?: string[]): Promise<Record<string, string>> {
   try {
     const { glob } = await import('glob');
     const fs = await import('node:fs/promises');
     const crypto = await import('node:crypto');
+    const ignorePatterns = await getIgnorePatterns(dirPath);
 
     const sourcePatterns = [
       "src/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
@@ -90,7 +93,7 @@ export async function sampleCodebasePatterns(dirPath: string): Promise<Record<st
     const foundFiles = await glob(sourcePatterns, {
       cwd: dirPath,
       nocase: true,
-      ignore: ["**/node_modules/**", "**/vendor/**", "**/.git/**", "**/target/**", "**/dist/**", "**/build/**", "**/*.test.*", "**/*.spec.*", "**/test/**", "**/tests/**"],
+      ignore: ignorePatterns,
     });
 
     // Limit to at most 3 random files
@@ -198,9 +201,9 @@ export function detectStyleFromCode(files: Array<{ path: string; content: string
   };
 }
 
-export async function analyzeProjectStyle(dirPath: string): Promise<ProjectStyleReport> {
-  const conventions = await gatherProjectConventions(dirPath);
-  const patterns = await sampleCodebasePatterns(dirPath);
+export async function analyzeProjectStyle(dirPath: string, excludePath?: string[]): Promise<ProjectStyleReport> {
+  const conventions = await gatherProjectConventions(dirPath, excludePath);
+  const patterns = await sampleCodebasePatterns(dirPath, excludePath);
 
   const conventionsMessage = `Found ${Object.keys(conventions).length} convention/linter files in local directory.`;
   const patternsMessage = `Sampled ${Object.keys(patterns).length} source files to infer codebase patterns.`;

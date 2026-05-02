@@ -5,6 +5,7 @@ import * as fs from "node:fs/promises";
 import * as readline from "node:readline";
 import { createReadStream } from "node:fs";
 import * as path from "node:path";
+import { DEFAULT_IGNORE_PATTERNS } from "./constants.js";
 
 export function isBinaryFile(content: Buffer): boolean {
   // Check for null bytes which indicate binary content
@@ -12,6 +13,55 @@ export function isBinaryFile(content: Buffer): boolean {
     if (content[i] === 0) return true;
   }
   return false;
+}
+
+/**
+ * Reads .gitignore from the project root and returns an array of glob-compatible ignore patterns.
+ * Also includes DEFAULT_IGNORE_PATTERNS.
+ */
+export async function getIgnorePatterns(dirPath: string): Promise<string[]> {
+  const ignorePatterns = [...DEFAULT_IGNORE_PATTERNS];
+  const gitignorePath = path.join(dirPath, ".gitignore");
+
+  try {
+    const content = await fs.readFile(gitignorePath, "utf-8");
+    const lines = content.split(/\r?\n/);
+    
+    for (let line of lines) {
+      line = line.trim();
+      // Skip empty lines and comments
+      if (!line || line.startsWith("#")) continue;
+      
+      // Convert .gitignore pattern to glob-compatible if needed
+      // Simple conversion: if it starts with /, it's relative to root
+      // If it ends with /, it's a directory
+      // For glob's 'ignore' option, we often want '**/pattern/**'
+      
+      if (line.startsWith("/")) {
+        const pattern = line.substring(1);
+        ignorePatterns.push(pattern);
+        if (!pattern.includes("*")) {
+           ignorePatterns.push(`${pattern}/**`);
+        }
+      } else {
+        // If it doesn't have a slash, it matches anywhere
+        if (!line.includes("/")) {
+           ignorePatterns.push(`**/${line}`);
+           ignorePatterns.push(`**/${line}/**`);
+        } else {
+           ignorePatterns.push(line);
+           if (!line.endsWith("*")) {
+             ignorePatterns.push(`${line}/**`);
+           }
+        }
+      }
+    }
+  } catch (e) {
+    // .gitignore doesn't exist or is not readable, just use defaults
+  }
+
+  // Remove duplicates
+  return Array.from(new Set(ignorePatterns));
 }
 
 // Stream read large files with size limit

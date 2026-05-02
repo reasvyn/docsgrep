@@ -25,6 +25,7 @@ It samples up to **3 random source files** (from `src/`, `app/`, `lib/`, etc.) t
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `dirPath` | `string` | Yes | The absolute path to the local directory to analyze. |
+| `excludePath` | `string[]` | No | Optional glob patterns to exclude from scanning. |
 
 ## Example
 

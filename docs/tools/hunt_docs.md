@@ -11,6 +11,8 @@ Hunts for README files and documentation folders within a local directory.
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `dirPath` | `string` | Yes | The absolute path to the local directory to explore. |
+| `includePath` | `string[]` | No | Glob patterns to limit the discovery scope. Overrides defaults. |
+| `excludePath` | `string[]` | No | Glob patterns to exclude from scanning. Merged with `.gitignore`. |
 
 ## Example
 

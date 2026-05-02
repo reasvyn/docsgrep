@@ -26,7 +26,9 @@ The audit provides two key scores (0-100):
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `dirPath` | `string` | Yes | The absolute path to the local directory to audit. |
-| `filePatterns` | `string[]` | No | Glob patterns to limit the audit scope (e.g., `['src/**/*.tsx']`). |
+| `includePath` | `string[]` | No | Glob patterns to limit the audit scope (e.g., `['src/**/*.tsx']`). Overrides `filePatterns`. |
+| `excludePath` | `string[]` | No | Glob patterns to exclude from scanning. Merged with project `.gitignore`. |
+| `filePatterns` | `string[]` | No | (Legacy) Alias for `includePath`. |
 | `focusAreas` | `string[]` | No | Focus areas: `dead_code`, `structure`, `performance`, `naming`, `all`. |
 
 ## Example

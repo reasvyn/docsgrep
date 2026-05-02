@@ -1,7 +1,7 @@
 // Universal code quality rules that apply across ALL programming languages
 // These are language-agnostic patterns that indicate code quality issues
 
-import { DEFAULT_IGNORE_PATTERNS } from "./utils/constants.js";
+import { getIgnorePatterns } from "./utils/file.js";
 
 export interface CodeIssue {
   file: string;
@@ -298,22 +298,20 @@ class UniversalCodeAnalyzer {
 // Main audit function
 export async function performUniversalAudit(
   dirPath: string,
-  filePatterns?: string[]
+  includePath?: string[],
+  excludePath?: string[]
 ): Promise<AuditReport> {
   const analyzer = new UniversalCodeAnalyzer();
+  const ignorePatterns = await getIgnorePatterns(dirPath);
   
   // Step 1: Find all source files (language agnostic)
-  const patterns = filePatterns || [
+  const { FileScanner } = await import("./tools/base.js");
+  const defaultPatterns = [
     '**/*.{js,ts,jsx,tsx,py,go,rs,rb,java,cpp,c,cs,php,swift,dart,ex,erl,elixir,clj,scala,kt,ts,sh,bash,yaml,yml,json,xml,html,css,scss}',
   ];
   
+  const matches = await FileScanner.findFiles({ dirPath, includePath, excludePath }, defaultPatterns);
   const files: Array<{ path: string; content: string; ext: string }> = [];
-  
-  for (const pattern of patterns) {
-    const matches = await (await import('glob')).glob(pattern, {
-      cwd: dirPath,
-      ignore: DEFAULT_IGNORE_PATTERNS,
-    });
     
     for (const match of matches.slice(0, 50)) { // Limit to 50 files for performance
       try {
@@ -325,10 +323,9 @@ export async function performUniversalAudit(
         // Skip unreadable files
       }
     }
-  }
   
   // Step 2: Analyze project structure
-  const structure = await analyzeProjectStructure(dirPath);
+  const structure = await analyzeProjectStructure(dirPath, excludePath);
   
   // Step 3: Detect conventions from sampled files
   const namingStyle = analyzer.detectNamingConventions(files);
@@ -383,26 +380,25 @@ export async function performUniversalAudit(
   };
 }
 
-async function analyzeProjectStructure(dirPath: string): Promise<AuditReport['projectStructure']> {
+async function analyzeProjectStructure(dirPath: string, excludePath?: string[]): Promise<AuditReport['projectStructure']> {
+
   const fs = await import('node:fs/promises');
   const path = await import('node:path');
+  const { FileScanner } = await import('./tools/base.js');
   
-  const hasDocumentation = await fileExists(dirPath, ['README*', 'docs/**/*.md', 'DOCUMENTATION*']);
+  const hasDocumentation = await fileExists(dirPath, ['README*', 'docs/**/*.md', 'DOCUMENTATION*'], excludePath);
   const hasLinterConfig = await fileExists(dirPath, [
     '.eslintrc*', '.prettierrc*', 'tsconfig.json', '.editorconfig',
     '.rubocop.yml', '.flake8', 'phpcs.xml', 'rustfmt.toml', '.pylintrc',
-  ]);
-  const hasTests = await fileExists(dirPath, ['test/**', 'tests/**', 'spec/**', '__tests__/**']);
-  const hasCI = await fileExists(dirPath, ['.github/workflows/**', '.gitlab-ci.yml', 'Jenkinsfile', '.circleci/**']);
+  ], excludePath);
+  const hasTests = await fileExists(dirPath, ['test/**', 'tests/**', 'spec/**', '__tests__/**'], excludePath);
+  const hasCI = await fileExists(dirPath, ['.github/workflows/**', '.gitlab-ci.yml', 'Jenkinsfile', '.circleci/**'], excludePath);
   
   // Get top-level directories
-  const entries = await fs.readdir(dirPath, { withFileTypes: true });
-  const directories = entries
-    .filter(e => e.isDirectory() && !e.name.startsWith('.'))
-    .map(e => e.name);
+  const directories = await FileScanner.findDirectories({ dirPath, excludePath });
   
   // Detect entry points
-  const entryPoints = await findEntryPoints(dirPath);
+  const entryPoints = await findEntryPoints(dirPath, excludePath);
   
   return {
     hasDocumentation,
@@ -414,16 +410,13 @@ async function analyzeProjectStructure(dirPath: string): Promise<AuditReport['pr
   };
 }
 
-async function fileExists(dirPath: string, patterns: string[]): Promise<boolean> {
-  const glob = (await import('glob')).glob;
-  for (const pattern of patterns) {
-    const matches = await glob(pattern, { cwd: dirPath, ignore: DEFAULT_IGNORE_PATTERNS });
-    if (matches.length > 0) return true;
-  }
-  return false;
+async function fileExists(dirPath: string, patterns: string[], excludePath?: string[]): Promise<boolean> {
+  const { FileScanner } = await import('./tools/base.js');
+  const matches = await FileScanner.findFiles({ dirPath, excludePath, includePath: patterns }, patterns);
+  return matches.length > 0;
 }
 
-async function findEntryPoints(dirPath: string): Promise<string[]> {
+async function findEntryPoints(dirPath: string, excludePath?: string[]): Promise<string[]> {
   const commonEntryPoints = [
     'index.{js,ts,py,go,rs,rb,java}',
     'main.{js,ts,py,go,rs,rb,java,c,cpp}',
@@ -435,16 +428,8 @@ async function findEntryPoints(dirPath: string): Promise<string[]> {
     'package.json', // Check "main" field
   ];
   
-  const glob = (await import('glob')).glob;
-  const entryPoints: string[] = [];
-  
-  for (const pattern of commonEntryPoints) {
-    const matches = await glob(pattern, {
-      cwd: dirPath,
-      ignore: DEFAULT_IGNORE_PATTERNS,
-    });
-    entryPoints.push(...matches);
-  }
+  const { FileScanner } = await import('./tools/base.js');
+  const entryPoints = await FileScanner.findFiles({ dirPath, excludePath, includePath: commonEntryPoints }, commonEntryPoints);
   
   return [...new Set(entryPoints)].slice(0, 10);
 }

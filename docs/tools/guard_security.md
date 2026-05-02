@@ -34,7 +34,9 @@ Identifies hardcoded credentials using entropy and pattern matching:
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `dirPath` | `string` | Yes | The absolute path to the local directory to audit. |
-| `filePatterns` | `string[]` | No | Glob patterns to limit the scan scope. |
+| `includePath` | `string[]` | No | Glob patterns to limit the audit scope (e.g., `['src/**/*.tsx']`). Overrides `filePatterns`. |
+| `excludePath` | `string[]` | No | Glob patterns to exclude from scanning. Merged with project `.gitignore`. |
+| `filePatterns` | `string[]` | No | (Legacy) Alias for `includePath`. |
 
 ## Example
 

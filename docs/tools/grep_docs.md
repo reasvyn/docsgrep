@@ -19,7 +19,9 @@ Results are ranked based on three weighted factors:
 | `dirPath` | `string` | Yes | The absolute path to the local directory to search. |
 | `pattern` | `string` | Yes | The regex pattern to search for. |
 | `filePattern` | `string` | No | Optional regex to filter which documentation files are searched. |
-| `contextLines` | `number` | No | Optional. Number of surrounding context lines to include (max 5). |
+| `contextLines` | `number` | No | Optional. Number of surrounding context lines (max 5). |
+| `includePath` | `string[]` | No | Glob patterns to limit the search scope. Overrides defaults. |
+| `excludePath` | `string[]` | No | Glob patterns to exclude from scanning. Merged with `.gitignore`. |
 
 ## Example
 

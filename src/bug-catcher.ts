@@ -450,11 +450,11 @@ export class BugDetector {
 }
 
 // Main bug catching function
-export async function catchBugs(dirPath: string, filePatterns?: string[]): Promise<BugReport> {
+export async function catchBugs(dirPath: string, includePath?: string[], excludePath?: string[]): Promise<BugReport> {
   const detector = new BugDetector();
   const path = await import('node:path');
   const fs = await import('node:fs/promises');
-  const { glob } = await import('glob');
+  const { FileScanner } = await import('./tools/base.js');
 
   const report: BugReport = {
     summary: {
@@ -473,28 +473,9 @@ export async function catchBugs(dirPath: string, filePatterns?: string[]): Promi
   };
 
   // Find source files
-  const patterns = filePatterns?.length
-    ? filePatterns
-    : ['**/*.{js,ts,jsx,tsx,py,go,rs,php,java,rb,cs,cpp,c,swift,dart}'];
+  const defaultPatterns = ['**/*.{js,ts,jsx,tsx,py,go,rs,php,java,rb,cs,cpp,c,swift,dart}'];
 
-  const files = await glob(patterns, {
-    cwd: dirPath,
-    ignore: [
-      '**/node_modules/**',
-      '**/.git/**',
-      '**/dist/**',
-      '**/build/**',
-      '**/vendor/**',
-      '**/*.test.*',
-      '**/*.spec.*',
-      // Exclude self to avoid false positives
-      '**/src/bug-catcher.ts',
-      '**/src/security-audit.ts',
-      '**/src/best-practices.ts',
-      '**/src/index.ts',
-      '**/build/**',
-    ],
-  });
+  const files = await FileScanner.findFiles({ dirPath, includePath, excludePath }, defaultPatterns);
 
   const allIssues: BugIssue[] = [];
 

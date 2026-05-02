@@ -59,16 +59,13 @@ import { performUniversalAudit as performAudit, type AuditReport } from "./best-
 import { getAuditPrompt } from "./audit.js";
 import { performSecurityAudit, generateSecurityAuditPrompt, type SecurityAuditReport } from "./security-audit.js";
 import { catchBugs, type BugReport } from "./bug-catcher.js";
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const pkgPath = path.resolve(__dirname, "../package.json");
-const pkg = JSON.parse(await fs.readFile(pkgPath, "utf-8"));
+import { AppInfo } from "./utils/app-info.js";
 
 // Initialize the MCP server
 const server = new Server(
   {
-    name: pkg.name,
-    version: pkg.version,
+    name: AppInfo.name,
+    version: AppInfo.version,
   },
   {
     capabilities: {
@@ -78,176 +75,96 @@ const server = new Server(
 );
 
 // Modularized handlers to reduce nesting
-async function handleLintCodeTool(args: LintCodeArgs): Promise<McpToolResponse> {
-  const { dirPath: rawPath, filePatterns, focusAreas } = args;
+import { BaseTool } from "./tools/base.js";
 
-  try {
-    const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-    const release = await operationLimiter.acquire();
-    try {
-      const caps = await checkCapabilities();
-      logger.info("Starting universal code quality audit", {
-        dirPath,
-        filePatterns,
-        focusAreas,
-        capabilities: caps,
-      });
-
-      const report: AuditReport = await performAudit(dirPath, filePatterns);
-      
-      // Add capability warnings to recommendations
-      const gapMessages = getCapabilityGapMessage(caps);
-      report.recommendations.push(...gapMessages);
-
-      logger.info("Audit completed", {
-        filesScanned: report.summary.filesScanned,
-        totalIssues: report.summary.totalIssues,
-      });
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                message: `Audit completed: ${report.summary.totalIssues} issues across ${report.summary.filesScanned} files. Documentation Score: ${report.summary.documentationScore}/100, Code Quality Score: ${report.summary.codeQualityScore}/100`,
-                summary: report.summary,
-                projectStructure: report.projectStructure,
-                detectedConventions: report.detectedConventions || {},
-                issues: report.issues || [],
-                strengths: report.strengths || [],
-                recommendations: report.recommendations || [],
-                capabilities: caps,
-                note:
-                  report.issues && report.issues.length >= 100
-                    ? "Results limited to 100 issues. There may be more issues."
-                    : undefined,
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    } finally {
-      release();
-    }
-  } catch (error: any) {
+class LintCodeTool extends BaseTool<LintCodeArgs> {
+  protected name = "lint_code";
+  protected async run(args: LintCodeArgs): Promise<McpToolResponse> {
+    const dirPath = validateDirPath(validateStringParam(args.dirPath, "dirPath"));
+    const caps = await checkCapabilities();
+    // Support legacy filePatterns as includePath
+    const includePath = args.includePath || args.filePatterns;
+    const report: AuditReport = await performAudit(dirPath, includePath, args.excludePath);
+    const gapMessages = getCapabilityGapMessage(caps);
+    report.recommendations.push(...gapMessages);
     return {
-      content: [{ type: "text", text: `Error during audit: ${error.message}` }],
-      isError: true,
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          message: `Audit completed: ${report.summary.totalIssues} issues across ${report.summary.filesScanned} files. Documentation Score: ${report.summary.documentationScore}/100, Code Quality Score: ${report.summary.codeQualityScore}/100`,
+          summary: report.summary,
+          projectStructure: report.projectStructure,
+          detectedConventions: report.detectedConventions || {},
+          issues: report.issues || [],
+          strengths: report.strengths || [],
+          recommendations: report.recommendations || [],
+          capabilities: caps,
+          note: report.issues && report.issues.length >= 100 ? "Results limited to 100 issues." : undefined,
+        }, null, 2),
+      }],
     };
   }
 }
 
-async function handleGuardSecurityTool(args: GuardSecurityArgs): Promise<McpToolResponse> {
-  const { dirPath: rawPath, filePatterns } = args;
-
-  try {
-    const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-    const release = await operationLimiter.acquire();
-    try {
-      const caps = await checkCapabilities();
-      logger.info("Starting security audit", { dirPath, filePatterns, capabilities: caps });
-
-      const report: SecurityAuditReport = await performSecurityAudit(
-        dirPath,
-        filePatterns
-      );
-      
-      const gapMessages = getCapabilityGapMessage(caps);
-      report.recommendations.push(...gapMessages);
-
-      logger.info("Security audit completed", {
-        filesScanned: report.summary.filesScanned,
-        totalIssues: report.summary.totalIssues,
-        riskLevel: report.summary.riskLevel,
-      });
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                message: `Security audit completed: ${report.summary.totalIssues} issues found. Security Score: ${report.summary.securityScore}/100 (Risk Level: ${report.summary.riskLevel})`,
-                summary: report.summary,
-                owaspTop10: report.owaspTop10,
-                dependencyAnalysis: report.dependencyAnalysis,
-                secretsFound: report.secretsFound,
-                privacyIssues: report.privacyIssues,
-                complianceStatus: report.complianceStatus,
-                recommendations: report.recommendations,
-                capabilities: caps,
-                note:
-                  report.secretsFound.length >= 50
-                    ? "Secrets list limited to 50 items."
-                    : undefined,
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    } finally {
-      release();
-    }
-  } catch (error: any) {
+class GuardSecurityTool extends BaseTool<GuardSecurityArgs> {
+  protected name = "guard_security";
+  protected async run(args: GuardSecurityArgs): Promise<McpToolResponse> {
+    const dirPath = validateDirPath(validateStringParam(args.dirPath, "dirPath"));
+    const caps = await checkCapabilities();
+    const includePath = args.includePath || args.filePatterns;
+    const report: SecurityAuditReport = await performSecurityAudit(dirPath, includePath, args.excludePath);
+    const gapMessages = getCapabilityGapMessage(caps);
+    report.recommendations.push(...gapMessages);
     return {
-      content: [
-        { type: "text", text: `Error during security audit: ${error.message}` },
-      ],
-      isError: true,
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          message: `Security audit completed: ${report.summary.totalIssues} issues found. Security Score: ${report.summary.securityScore}/100`,
+          summary: report.summary,
+          owaspTop10: report.owaspTop10,
+          dependencyAnalysis: report.dependencyAnalysis,
+          secretsFound: report.secretsFound,
+          privacyIssues: report.privacyIssues,
+          complianceStatus: report.complianceStatus,
+          recommendations: report.recommendations,
+          capabilities: caps,
+          note: report.secretsFound.length >= 50 ? "Secrets list limited to 50 items." : undefined,
+        }, null, 2),
+      }],
+    };
+  }
+}
+
+async function handleLintCodeTool(args: LintCodeArgs): Promise<McpToolResponse> {
+  return new LintCodeTool().execute(args);
+}
+
+async function handleGuardSecurityTool(args: GuardSecurityArgs): Promise<McpToolResponse> {
+  return new GuardSecurityTool().execute(args);
+}
+
+class CatchBugsTool extends BaseTool<CatchBugsArgs> {
+  protected name = "catch_bugs";
+  protected async run(args: CatchBugsArgs): Promise<McpToolResponse> {
+    const dirPath = validateDirPath(validateStringParam(args.dirPath, "dirPath"));
+    const includePath = args.includePath || args.filePatterns;
+    const report: BugReport = await catchBugs(dirPath, includePath, args.excludePath);
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          message: `Bug analysis completed: ${report.summary.totalIssues} issues found. Bug Score: ${report.summary.bugScore}/100`,
+          summary: report.summary,
+          categories: report.categories,
+          recommendations: report.recommendations,
+        }, null, 2),
+      }],
     };
   }
 }
 
 async function handleCatchBugsTool(args: CatchBugsArgs): Promise<McpToolResponse> {
-  const { dirPath: rawPath, filePatterns } = args;
-
-  try {
-    const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-    const release = await operationLimiter.acquire();
-    try {
-      logger.info("Starting bug catching", { dirPath, filePatterns });
-
-      const report: BugReport = await catchBugs(dirPath, filePatterns);
-
-      logger.info("Bug catching completed", {
-        filesScanned: report.summary.filesScanned,
-        totalIssues: report.summary.totalIssues,
-        riskLevel: report.summary.riskLevel,
-      });
-
-      return {
-        content: [
-          {
-            type: "text",
-            text: JSON.stringify(
-              {
-                message: `Bug analysis completed: ${report.summary.totalIssues} issues found. Bug Score: ${report.summary.bugScore}/100 (Risk Level: ${report.summary.riskLevel})`,
-                summary: report.summary,
-                categories: report.categories,
-                recommendations: report.recommendations,
-              },
-              null,
-              2
-            ),
-          },
-        ],
-      };
-    } finally {
-      release();
-    }
-  } catch (error: any) {
-    return {
-      content: [
-        { type: "text", text: `Error during bug catching: ${error.message}` },
-      ],
-      isError: true,
-    };
-  }
+  return new CatchBugsTool().execute(args);
 }
 
 async function handleAskLintTool(args: AskLintArgs): Promise<McpToolResponse> {
@@ -308,6 +225,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "The absolute path to the local directory to analyze.",
             },
+            excludePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to exclude from scanning.",
+            },
           },
           required: ["dirPath"],
         },
@@ -323,6 +245,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "The absolute path to the local directory to analyze.",
             },
+            excludePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to exclude from scanning.",
+            },
           },
           required: ["dirPath"],
         },
@@ -337,6 +264,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             dirPath: {
               type: "string",
               description: "The absolute path to the local directory to explore.",
+            },
+            includePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to include in scanning.",
+            },
+            excludePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to exclude from scanning.",
             },
           },
           required: ["dirPath"],
@@ -355,7 +292,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             },
             branch: {
               type: "string",
-              description: "Optional. Specific branch to explore (e.g., 'docs', 'gh-pages', 'v14'). If not provided, explores the default branch.",
+              description: "Optional. Specific branch to explore (e.g., 'docs', 'main').",
+            },
+            tag: {
+              type: "string",
+              description: "Optional. Specific tag or version to explore (e.g., 'v1.0.0'). Overrides branch if both are provided.",
             },
             localProjectPath: {
               type: "string",
@@ -427,6 +368,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "number",
               description: "Optional. Number of surrounding context lines to include (max 5).",
             },
+            includePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to include in scanning.",
+            },
+            excludePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to exclude from scanning.",
+            },
           },
           required: ["dirPath", "pattern"],
         },
@@ -450,6 +401,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "array",
               items: { type: "string" },
               description: "Optional. Focus audit on specific areas: 'dead_code', 'structure', 'performance', 'naming', 'all'.",
+            },
+            includePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to include in scanning.",
+            },
+            excludePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to exclude from scanning.",
             },
           },
           required: ["dirPath"],
@@ -484,6 +445,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               items: { type: "string" },
               description: "Optional. Array of glob patterns to specify which files to scan (e.g., ['**/*.js', '**/*.env']).",
             },
+            includePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to include in scanning.",
+            },
+            excludePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to exclude from scanning.",
+            },
           },
           required: ["dirPath"],
         },
@@ -516,6 +487,16 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "array",
               items: { type: "string" },
               description: "Optional. Array of glob patterns to specify which files to scan (e.g., ['src/**/*.ts']).",
+            },
+            includePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to include in scanning.",
+            },
+            excludePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to exclude from scanning.",
             },
           },
           required: ["dirPath"],

@@ -27,6 +27,7 @@ This information is used by other tools to provide context-aware analysis (e.g.,
 | Argument | Type | Required | Description |
 |----------|------|----------|-------------|
 | `dirPath` | `string` | Yes | The absolute path to the local directory to analyze. |
+| `excludePath` | `string[]` | No | Optional glob patterns to exclude from scanning. |
 
 ## Example
 

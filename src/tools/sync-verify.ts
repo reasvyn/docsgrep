@@ -2,6 +2,7 @@
  * Sync & verification tools: sync_docs, verify_truth, spot_delta, catch_fossils
  */
 import { glob } from "glob";
+import { getIgnorePatterns } from "../utils/file.js";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { simpleGit } from "simple-git";
@@ -116,15 +117,12 @@ export async function handleVerifyTruth(
 
       let codeFiles: string[] = [];
       try {
+        const ignorePatterns = await getIgnorePatterns(dirPath);
         codeFiles = await glob(CODE_FILE_PATTERNS, {
           cwd: dirPath,
-          ignore: [
-            "**/node_modules/**",
-            "**/.git/**",
-            "**/dist/**",
-            "**/build/**",
-          ],
+          ignore: ignorePatterns,
         });
+
       } catch (e: any) {
         logger.error("Error finding code files", { error: e.message });
       }
@@ -262,10 +260,12 @@ export async function handleSpotDelta(
 
       let codeFiles: string[] = [];
       try {
+        const ignorePatterns = await getIgnorePatterns(dirPath);
         codeFiles = await glob(CODE_FILE_PATTERNS, {
           cwd: dirPath,
-          ignore: ["**/node_modules/**", "**/.git/**"],
+          ignore: ignorePatterns,
         });
+
       } catch (e: any) {
         logger.error("Error finding code files", { error: e.message });
       }
@@ -347,10 +347,12 @@ export async function handleCatchFossils(
     try {
       let docs: string[] = [];
       try {
+        const ignorePatterns = await getIgnorePatterns(dirPath);
         docs = await glob("**/*.md", {
           cwd: dirPath,
-          ignore: ["**/node_modules/**", "**/.git/**"],
+          ignore: ignorePatterns,
         });
+
       } catch (e: any) {
         logger.error("Error finding docs", { error: e.message });
       }
