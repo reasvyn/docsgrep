@@ -27,94 +27,102 @@ export interface ProjectStyleReport {
 
 // Re-export functions from existing modules
 export async function gatherProjectConventions(dirPath: string): Promise<Record<string, string>> {
-  const { glob } = await import('glob');
-  const fs = await import('node:fs/promises');
+  try {
+    const { glob } = await import('glob');
+    const fs = await import('node:fs/promises');
 
-  const conventionPatterns = [
-    // Markdown rules (fuzzy)
-    "**/*contribut*.{md,txt}", "**/*architectur*.{md,txt}", "**/*style*.{md,txt}", 
-    "**/*convention*.{md,txt}", "**/*standard*.{md,txt}", "**/*guideline*.{md,txt}",
-    // Generic linter/formatter configs (fuzzy)
-    "**/*lint*rc*", "**/*.lint*", "**/*format*rc*", "**/*.format*", "**/*-cs-fixer*", "**/*rules*.{json,yaml,yml,xml,toml}",
-    // Editor config
-    "**/.editorconfig",
-    // Known specific linters
-    "**/.eslintrc*", "**/eslint.config.*", "**/.prettierrc*", "**/prettier.config.*", "**/biome.json",
-    "**/phpcs.xml", "**/phpstan.neon", "**/golangci.y*ml", "**/tox.ini", "**/.flake8", "**/.rubocop.yml", "**/rustfmt.toml"
-  ];
+    const conventionPatterns = [
+      // Markdown rules (fuzzy)
+      "**/*contribut*.{md,txt}", "**/*architectur*.{md,txt}", "**/*style*.{md,txt}", 
+      "**/*convention*.{md,txt}", "**/*standard*.{md,txt}", "**/*guideline*.{md,txt}",
+      // Generic linter/formatter configs (fuzzy)
+      "**/*lint*rc*", "**/*.lint*", "**/*format*rc*", "**/*.format*", "**/*-cs-fixer*", "**/*rules*.{json,yaml,yml,xml,toml}",
+      // Editor config
+      "**/.editorconfig",
+      // Known specific linters
+      "**/.eslintrc*", "**/eslint.config.*", "**/.prettierrc*", "**/prettier.config.*", "**/biome.json",
+      "**/phpcs.xml", "**/phpstan.neon", "**/golangci.y*ml", "**/tox.ini", "**/.flake8", "**/.rubocop.yml", "**/rustfmt.toml"
+    ];
 
-  const foundFiles = await glob(conventionPatterns, {
-    cwd: dirPath,
-    nocase: true,
-    ignore: ["**/node_modules/**", "**/vendor/**", "**/.git/**", "**/target/**", "**/dist/**", "**/build/**", "**/.next/**", "**/.nuxt/**"],
-  });
+    const foundFiles = await glob(conventionPatterns, {
+      cwd: dirPath,
+      nocase: true,
+      ignore: ["**/node_modules/**", "**/vendor/**", "**/.git/**", "**/target/**", "**/dist/**", "**/build/**", "**/.next/**", "**/.nuxt/**"],
+    });
 
-  const conventions: Record<string, string> = {};
-  
-  for (const file of foundFiles) {
-    const fullPath = path.join(dirPath, file);
-    try {
-      const stat = await fs.stat(fullPath);
-      if (stat.isFile() && stat.size < 100000) {
-        const content = await fs.readFile(fullPath, "utf-8");
-        conventions[file] = content;
-      } else {
-        conventions[file] = `[File too large to include context automatically: ${stat.size} bytes]`;
+    const conventions: Record<string, string> = {};
+    
+    for (const file of foundFiles) {
+      const fullPath = path.join(dirPath, file);
+      try {
+        const stat = await fs.stat(fullPath);
+        if (stat.isFile() && stat.size < 100000) {
+          const content = await fs.readFile(fullPath, "utf-8");
+          conventions[file] = content;
+        } else {
+          conventions[file] = `[File too large to include context automatically: ${stat.size} bytes]`;
+        }
+      } catch (e: any) {
+        conventions[file] = `[Error reading file: ${e.message}]`;
       }
-    } catch (e: any) {
-      conventions[file] = `[Error reading file: ${e.message}]`;
     }
-  }
 
-  return conventions;
+    return conventions;
+  } catch (error: any) {
+    throw new Error(`Failed to gather project conventions: ${error.message}`);
+  }
 }
 
 export async function sampleCodebasePatterns(dirPath: string): Promise<Record<string, string>> {
-  const { glob } = await import('glob');
-  const fs = await import('node:fs/promises');
-  const crypto = await import('node:crypto');
+  try {
+    const { glob } = await import('glob');
+    const fs = await import('node:fs/promises');
+    const crypto = await import('node:crypto');
 
-  const sourcePatterns = [
-    "src/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
-    "app/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
-    "lib/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
-    "internal/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
-    "pkg/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
-  ];
+    const sourcePatterns = [
+      "src/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
+      "app/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
+      "lib/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
+      "internal/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
+      "pkg/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
+    ];
 
-  const foundFiles = await glob(sourcePatterns, {
-    cwd: dirPath,
-    nocase: true,
-    ignore: ["**/node_modules/**", "**/vendor/**", "**/.git/**", "**/target/**", "**/dist/**", "**/build/**", "**/*.test.*", "**/*.spec.*", "**/test/**", "**/tests/**"],
-  });
+    const foundFiles = await glob(sourcePatterns, {
+      cwd: dirPath,
+      nocase: true,
+      ignore: ["**/node_modules/**", "**/vendor/**", "**/.git/**", "**/target/**", "**/dist/**", "**/build/**", "**/*.test.*", "**/*.spec.*", "**/test/**", "**/tests/**"],
+    });
 
-  // Limit to at most 3 random files
-  const selectedFiles: string[] = [];
-  const shuffled = [...foundFiles];
-  for (let i = 0; i < 3 && shuffled.length > 0; i++) {
-    const randomBytes = crypto.randomBytes(4);
-    const randomValue = randomBytes.readUInt32BE(0) / 0xFFFFFFFF;
-    const idx = Math.floor(randomValue * shuffled.length);
-    selectedFiles.push(shuffled[idx]);
-    shuffled.splice(idx, 1);
-  }
-  
-  const patterns: Record<string, string> = {};
-  
-  for (const file of selectedFiles) {
-    const fullPath = path.join(dirPath, file);
-    try {
-      const stat = await fs.stat(fullPath);
-      if (stat.isFile() && stat.size < 20000) {
-        const content = await fs.readFile(fullPath, "utf-8");
-        patterns[file] = content;
-      }
-    } catch (e: any) {
-      patterns[file] = `[Error reading file: ${e.message}]`;
+    // Limit to at most 3 random files
+    const selectedFiles: string[] = [];
+    const shuffled = [...foundFiles];
+    for (let i = 0; i < 3 && shuffled.length > 0; i++) {
+      const randomBytes = crypto.randomBytes(4);
+      const randomValue = randomBytes.readUInt32BE(0) / 0xFFFFFFFF;
+      const idx = Math.floor(randomValue * shuffled.length);
+      selectedFiles.push(shuffled[idx]);
+      shuffled.splice(idx, 1);
     }
-  }
+    
+    const patterns: Record<string, string> = {};
+    
+    for (const file of selectedFiles) {
+      const fullPath = path.join(dirPath, file);
+      try {
+        const stat = await fs.stat(fullPath);
+        if (stat.isFile() && stat.size < 20000) {
+          const content = await fs.readFile(fullPath, "utf-8");
+          patterns[file] = content;
+        }
+      } catch (e: any) {
+        patterns[file] = `[Error reading file: ${e.message}]`;
+      }
+    }
 
-  return patterns;
+    return patterns;
+  } catch (error: any) {
+    throw new Error(`Failed to sample codebase patterns: ${error.message}`);
+  }
 }
 
 export function detectStyleFromCode(files: Array<{ path: string; content: string }>): {

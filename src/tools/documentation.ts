@@ -4,18 +4,42 @@
 import { glob } from "glob";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
-import { validateStringParam, validateDirPath, escapeRegex } from "../utils/validation.js";
+import {
+  validateStringParam,
+  validateDirPath,
+  escapeRegex,
+} from "../utils/validation.js";
 import { operationLimiter } from "../utils/semaphore.js";
 import { streamReadFile, isBinaryFile } from "../utils/file.js";
 import { MAX_FILE_SIZE_READ } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
+import {
+  type McpToolResponse,
+  type HuntDocsArgs,
+  type PeekFileArgs,
+  type GrepDocsArgs,
+  type FathomMeaningArgs,
+  type TldrDocsArgs,
+  type HuntRelatedArgs,
+  type SmellStaleArgs,
+  type SenseSurroundingsArgs,
+} from "../types/tools.js";
 
 // Helper function to find docs in a given directory (language-agnostic, all .md files)
 export async function findDocsInDir(dirPath: string): Promise<string[]> {
   const allMdFiles = await glob("**/*.md", {
     cwd: dirPath,
     nocase: true,
-    ignore: ["**/node_modules/**", "**/.git/**", "**/dist/**", "**/build/**", "**/target/**", "**/vendor/**", "**/.next/**", "**/.nuxt/**"],
+    ignore: [
+      "**/node_modules/**",
+      "**/.git/**",
+      "**/dist/**",
+      "**/build/**",
+      "**/target/**",
+      "**/vendor/**",
+      "**/.next/**",
+      "**/.nuxt/**",
+    ],
   });
 
   const uniqueFiles = Array.from(new Set(allMdFiles));
@@ -49,7 +73,9 @@ function getMatchPrecisionScore(line: string, searchRegex: RegExp): number {
   }
 }
 
-export async function handleHuntDocs(args: any): Promise<any> {
+export async function handleHuntDocs(
+  args: HuntDocsArgs
+): Promise<McpToolResponse> {
   const { dirPath: rawPath } = args;
 
   try {
@@ -77,13 +103,20 @@ export async function handleHuntDocs(args: any): Promise<any> {
     };
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error exploring local directory: ${error.message}` }],
+      content: [
+        {
+          type: "text",
+          text: `Error exploring local directory: ${error.message}`,
+        },
+      ],
       isError: true,
     };
   }
 }
 
-export async function handlePeekFile(args: any): Promise<any> {
+export async function handlePeekFile(
+  args: PeekFileArgs
+): Promise<McpToolResponse> {
   const { filePath } = args;
 
   try {
@@ -99,11 +132,17 @@ export async function handlePeekFile(args: any): Promise<any> {
 
     // Stream/chunk read for large files
     if (stat.size > MAX_FILE_SIZE_READ) {
-      logger.info(`File exceeds limit, streaming first ${MAX_FILE_SIZE_READ} bytes`, {
-        filePath,
-        size: stat.size,
-      });
-      const streamResult = await streamReadFile(resolvedPath, MAX_FILE_SIZE_READ);
+      logger.info(
+        `File exceeds limit, streaming first ${MAX_FILE_SIZE_READ} bytes`,
+        {
+          filePath,
+          size: stat.size,
+        }
+      );
+      const streamResult = await streamReadFile(
+        resolvedPath,
+        MAX_FILE_SIZE_READ
+      );
       return {
         content: [
           {
@@ -133,18 +172,24 @@ export async function handlePeekFile(args: any): Promise<any> {
     };
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error reading file ${filePath}: ${error.message}` }],
+      content: [
+        { type: "text", text: `Error reading file ${filePath}: ${error.message}` },
+      ],
       isError: true,
     };
   }
 }
 
-export async function handleGrepDocs(args: any): Promise<any> {
-  const { dirPath: rawPath, pattern, filePattern } = args;
+export async function handleGrepDocs(
+  args: GrepDocsArgs
+): Promise<McpToolResponse> {
+  const { dirPath: rawPath, pattern, filePattern, contextLines } = args;
 
   try {
     const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
     const validatedPattern = validateStringParam(pattern, "pattern");
+    const contextSize =
+      contextLines && contextLines > 0 ? Math.min(contextLines, 5) : 0;
 
     // Validate regex
     let searchRegex: RegExp;
@@ -162,6 +207,7 @@ export async function handleGrepDocs(args: any): Promise<any> {
         file: string;
         line: number;
         content: string;
+        context?: string[];
         score: number;
       }> = [];
 
@@ -190,12 +236,22 @@ export async function handleGrepDocs(args: any): Promise<any> {
               );
               const totalScore = lineTypeScore + fileScore + precisionScore;
 
-              results.push({
+              const result: any = {
                 file,
                 line: i + 1,
                 content: lineText.trim(),
                 score: totalScore,
-              });
+              };
+
+              if (contextSize > 0) {
+                const start = Math.max(0, i - contextSize);
+                const end = Math.min(lines.length - 1, i + contextSize);
+                result.context = lines
+                  .slice(start, end + 1)
+                  .map((l) => l.trimEnd());
+              }
+
+              results.push(result);
             }
             searchRegex.lastIndex = 0; // Reset regex
           }
@@ -214,10 +270,11 @@ export async function handleGrepDocs(args: any): Promise<any> {
             text: JSON.stringify(
               {
                 message: `Found ${results.length} matches for pattern "${validatedPattern}". Results ranked by relevance.`,
-                results: results.map((r) => ({
+                results: results.slice(0, 50).map((r) => ({
                   file: r.file,
                   line: r.line,
                   content: r.content,
+                  context: r.context,
                   relevanceScore: r.score,
                 })),
               },
@@ -232,13 +289,17 @@ export async function handleGrepDocs(args: any): Promise<any> {
     }
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error searching docs: ${error.message}` }],
+      content: [
+        { type: "text", text: `Error searching docs: ${error.message}` },
+      ],
       isError: true,
     };
   }
 }
 
-export async function handleFathomMeaning(args: any): Promise<any> {
+export async function handleFathomMeaning(
+  args: FathomMeaningArgs
+): Promise<McpToolResponse> {
   const { dirPath: rawPath, query, topK } = args;
 
   try {
@@ -329,13 +390,20 @@ export async function handleFathomMeaning(args: any): Promise<any> {
     }
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error during semantic search: ${error.message}` }],
+      content: [
+        {
+          type: "text",
+          text: `Error during semantic search: ${error.message}`,
+        },
+      ],
       isError: true,
     };
   }
 }
 
-export async function handleTldrDocs(args: any): Promise<any> {
+export async function handleTldrDocs(
+  args: TldrDocsArgs
+): Promise<McpToolResponse> {
   const { filePath, maxLength } = args;
 
   try {
@@ -360,10 +428,7 @@ export async function handleTldrDocs(args: any): Promise<any> {
         const part = line.substring(0, 100);
         summaryParts.push(part);
         lineCount += part.length;
-      } else if (
-        summaryParts.length > 0 &&
-        !/^#+\s/.test(lines[i - 1] || "")
-      ) {
+      } else if (summaryParts.length > 0 && !/^#+\s/.test(lines[i - 1] || "")) {
         const part = line.substring(0, 100);
         summaryParts.push(part);
         lineCount += part.length;
@@ -380,7 +445,9 @@ export async function handleTldrDocs(args: any): Promise<any> {
           type: "text",
           text: JSON.stringify(
             {
-              message: `Summary of ${path.basename(resolvedPath)} (${summary.length} chars)`,
+              message: `Summary of ${path.basename(
+                resolvedPath
+              )} (${summary.length} chars)`,
               originalLength: content.length,
               summaryLength: summary.length,
               summary,
@@ -394,19 +461,24 @@ export async function handleTldrDocs(args: any): Promise<any> {
     };
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error summarizing document: ${error.message}` }],
+      content: [
+        { type: "text", text: `Error summarizing document: ${error.message}` },
+      ],
       isError: true,
     };
   }
 }
 
-export async function handleHuntRelated(args: any): Promise<any> {
+export async function handleHuntRelated(
+  args: HuntRelatedArgs
+): Promise<McpToolResponse> {
   const { dirPath: rawPath, topic, threshold } = args;
 
   try {
     const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
     const searchTopic = validateStringParam(topic, "topic");
-    const minScore = threshold && threshold > 0 && threshold <= 1 ? threshold : 0.7;
+    const minScore =
+      threshold && threshold > 0 && threshold <= 1 ? threshold : 0.7;
 
     const release = await operationLimiter.acquire();
     try {
@@ -439,7 +511,8 @@ export async function handleHuntRelated(args: any): Promise<any> {
             }
           }
 
-          const score = topicWords.length > 0 ? matchCount / topicWords.length : 0;
+          const score =
+            topicWords.length > 0 ? matchCount / topicWords.length : 0;
 
           if (score >= minScore) {
             results.push({
@@ -477,13 +550,17 @@ export async function handleHuntRelated(args: any): Promise<any> {
     }
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error hunting related docs: ${error.message}` }],
+      content: [
+        { type: "text", text: `Error hunting related docs: ${error.message}` },
+      ],
       isError: true,
     };
   }
 }
 
-export async function handleSmellStale(args: any): Promise<any> {
+export async function handleSmellStale(
+  args: SmellStaleArgs
+): Promise<McpToolResponse> {
   const { dirPath: rawPath, maxAgeDays, compareWithCode } = args;
 
   try {
@@ -533,7 +610,9 @@ export async function handleSmellStale(args: any): Promise<any> {
                 message: `Found ${staleDocs.length} stale documents (not updated in ${maxAge}+ days).`,
                 maxAgeDays: maxAge,
                 staleDocuments: staleDocs,
-                note: doCompare ? "Code comparison not yet implemented in this version." : undefined,
+                note: doCompare
+                  ? "Code comparison not yet implemented in this version."
+                  : undefined,
               },
               null,
               2
@@ -546,18 +625,25 @@ export async function handleSmellStale(args: any): Promise<any> {
     }
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error detecting stale docs: ${error.message}` }],
+      content: [
+        { type: "text", text: `Error detecting stale docs: ${error.message}` },
+      ],
       isError: true,
     };
   }
 }
 
-export async function handleSenseSurroundings(args: any): Promise<any> {
+export async function handleSenseSurroundings(
+  args: SenseSurroundingsArgs
+): Promise<McpToolResponse> {
   const { dirPath: rawPath, currentFilePath, contextDepth } = args;
 
   try {
     const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-    const validatedFile = validateStringParam(currentFilePath, "currentFilePath");
+    const validatedFile = validateStringParam(
+      currentFilePath,
+      "currentFilePath"
+    );
     const resolvedFile = path.resolve(validatedFile);
     const depth = ["minimal", "standard", "deep"].includes(contextDepth || "")
       ? contextDepth
@@ -567,6 +653,24 @@ export async function handleSenseSurroundings(args: any): Promise<any> {
     try {
       const fileDir = path.dirname(resolvedFile);
       const relativeFileDir = path.relative(dirPath, fileDir);
+
+      // IMPORT ANALYSIS: Read current file to find imports
+      const importedModules: string[] = [];
+      try {
+        const fileContent = await fs.readFile(resolvedFile, "utf-8");
+        const importRegex = /(?:import|from)\s+['"]([^'"]+)['"]/g;
+        let match;
+        while ((match = importRegex.exec(fileContent)) !== null) {
+          const importPath = match[1];
+          if (importPath.startsWith(".")) {
+            importedModules.push(
+              path.basename(importPath, path.extname(importPath)).toLowerCase()
+            );
+          }
+        }
+      } catch (e) {
+        // Skip import analysis if file can't be read
+      }
 
       const docs = await findDocsInDir(dirPath);
       const relevantDocs: Array<{
@@ -578,13 +682,22 @@ export async function handleSenseSurroundings(args: any): Promise<any> {
       for (const doc of docs) {
         const docRelative = path.relative(dirPath, doc);
         const docDir = path.dirname(docRelative);
+        const docBasename = path.basename(doc, ".md").toLowerCase();
 
         let relevance = "medium";
         let reason = "General documentation";
 
+        // Check if doc matches an imported module
+        const isImported = importedModules.some(
+          (m) => docBasename.includes(m) || m.includes(docBasename)
+        );
+
+        if (isImported) {
+          relevance = "high";
+          reason = "Related to an imported module";
+        }
         // README is always highly relevant
-        const docBasename = path.basename(doc).toLowerCase();
-        if (docBasename === "readme.md" || docBasename === "readme") {
+        else if (docBasename === "readme") {
           relevance = "high";
           reason = "README file";
         }
@@ -594,7 +707,10 @@ export async function handleSenseSurroundings(args: any): Promise<any> {
           reason = "Same directory as current file";
         }
         // Doc is in a parent directory
-        else if (relativeFileDir.startsWith(docDir + path.sep) && docDir !== ".") {
+        else if (
+          relativeFileDir.startsWith(docDir + path.sep) &&
+          docDir !== "."
+        ) {
           relevance = "high";
           reason = "Doc is in parent directory";
         }
@@ -626,7 +742,9 @@ export async function handleSenseSurroundings(args: any): Promise<any> {
             type: "text",
             text: JSON.stringify(
               {
-                message: `Found ${relevantDocs.length} relevant docs for ${path.basename(resolvedFile)}.`,
+                message: `Found ${relevantDocs.length} relevant docs for ${path.basename(
+                  resolvedFile
+                )}.`,
                 currentFile: resolvedFile,
                 contextDepth: depth,
                 relevantDocs,
@@ -642,7 +760,9 @@ export async function handleSenseSurroundings(args: any): Promise<any> {
     }
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error sensing surroundings: ${error.message}` }],
+      content: [
+        { type: "text", text: `Error sensing surroundings: ${error.message}` },
+      ],
       isError: true,
     };
   }

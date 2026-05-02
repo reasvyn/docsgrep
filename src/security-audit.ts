@@ -1,6 +1,8 @@
 // Enterprise-Grade Security Audit - Language Agnostic
 // Covers OWASP Top 10, ISO/IEC 27001, and industry security standards
 
+import { DEFAULT_IGNORE_PATTERNS } from "./utils/constants.js";
+
 export interface SecurityIssue {
   file: string;
   line?: number;
@@ -210,6 +212,13 @@ class SecurityAnalyzer {
   // Check for secrets in code
   checkSecrets(content: string, filePath: string): Array<{file: string; line?: number; type: string; value?: string}> {
     const found: Array<{file: string; line?: number; type: string; value?: string}> = [];
+    
+    // Skip if file is an example or sample (common in OSS repos)
+    const fileName = filePath.toLowerCase();
+    if (fileName.includes('example') || fileName.includes('sample')) {
+      return found;
+    }
+    
     const lines = content.split('\n');
 
     for (const secret of this.secretPatterns) {
@@ -486,13 +495,7 @@ export async function performSecurityAudit(dirPath: string, filePatterns?: strin
      const matches = await glob(pattern, {
        cwd: dirPath,
        ignore: [
-         '**/node_modules/**',
-         '**/vendor/**',
-         '**/.git/**',
-         '**/dist/**',
-         '**/build/**',
-         '**/*.test.*',
-         '**/*.spec.*',
+         ...DEFAULT_IGNORE_PATTERNS,
          // Exclude docsgrep's own source files to prevent false positives
          '**/src/security-audit.ts',
          '**/src/index.ts',

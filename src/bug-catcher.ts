@@ -216,6 +216,7 @@ export class BugDetector {
   detectBugs(content: string, filePath: string): BugIssue[] {
     const issues: BugIssue[] = [];
     const lines = content.split('\n');
+    const isTestFile = filePath.includes('.test.') || filePath.includes('.spec.') || filePath.includes('/test/');
 
     // 1. Runtime Errors
     for (const [category, config] of Object.entries(this.runtimeErrorPatterns)) {
@@ -224,14 +225,24 @@ export class BugDetector {
         pattern.lastIndex = 0;
         while ((match = pattern.exec(content)) !== null) {
           const lineNum = content.substring(0, match.index).split('\n').length;
+          const lineContent = lines[lineNum - 1] || '';
+          
+          // SMART FILTER: Skip await/promise if inside try-catch block
+          if (category === 'Unhandled Promise Rejection') {
+            const surroundingLines = lines.slice(Math.max(0, lineNum - 5), Math.min(lines.length, lineNum + 2)).join('\n');
+            if (surroundingLines.includes('try {') || surroundingLines.includes('try{')) {
+              continue; // Likely handled
+            }
+          }
+
           issues.push({
             file: filePath,
             line: lineNum,
-            severity: this.getSeverityForCategory('runtime'),
+            severity: isTestFile ? 'low' : this.getSeverityForCategory('runtime'),
             category: 'Runtime Error',
             title: category,
             description: config.description,
-            evidence: lines[lineNum - 1]?.substring(0, 100),
+            evidence: lineContent.substring(0, 100),
             impact: 'May cause runtime exceptions or unexpected behavior',
             remediation: this.getRemediationForRuntime(category),
           });

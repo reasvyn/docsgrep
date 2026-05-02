@@ -5,15 +5,29 @@ import { glob } from "glob";
 import * as fs from "node:fs/promises";
 import * as path from "node:path";
 import { simpleGit } from "simple-git";
-import { validateStringParam, validateDirPath, escapeRegex } from "../utils/validation.js";
+import {
+  validateStringParam,
+  validateDirPath,
+  escapeRegex,
+} from "../utils/validation.js";
 import { operationLimiter } from "../utils/semaphore.js";
+import { logger } from "../utils/logger.js";
+import {
+  type McpToolResponse,
+  type SyncDocsArgs,
+  type VerifyTruthArgs,
+  type SpotDeltaArgs,
+  type CatchFossilsArgs,
+} from "../types/tools.js";
 
 // Language-agnostic code file patterns
 const CODE_FILE_PATTERNS = [
   "**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift,dart,kt,scala,ex,exs,cljs,vue,svelte}",
 ];
 
-export async function handleSyncDocs(args: any): Promise<any> {
+export async function handleSyncDocs(
+  args: SyncDocsArgs
+): Promise<McpToolResponse> {
   const { dirPath: rawPath, filePaths, updateMode } = args;
 
   try {
@@ -36,7 +50,7 @@ export async function handleSyncDocs(args: any): Promise<any> {
           changedFiles = [
             ...status.modified,
             ...status.created,
-            ...status.renamed.map((r: any) => r.to),
+            ...status.renamed.map((r) => r.to),
           ].map((f: string) => path.join(dirPath, f));
         } catch (e) {
           // Git not available
@@ -65,13 +79,17 @@ export async function handleSyncDocs(args: any): Promise<any> {
     }
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error syncing docs: ${error.message}` }],
+      content: [
+        { type: "text", text: `Error syncing docs: ${error.message}` },
+      ],
       isError: true,
     };
   }
 }
 
-export async function handleVerifyTruth(args: any): Promise<any> {
+export async function handleVerifyTruth(
+  args: VerifyTruthArgs
+): Promise<McpToolResponse> {
   const { dirPath: rawPath, docPath, strictMode } = args;
 
   try {
@@ -84,25 +102,32 @@ export async function handleVerifyTruth(args: any): Promise<any> {
     try {
       const docContent = await fs.readFile(resolvedDocPath, "utf-8");
 
-      // Language-agnostic pattern for documented items
-      const methodPattern =
-        /(?:function|def|func|fn|method|class)\s+(\w+)/gi;
-      const documentedItems: string[] = [];
+      // Enhanced pattern: capture name AND parameter list
+      const methodPattern = /(?:function|def|func|fn|method)\s+(\w+)\s*\(([^)]*)\)/gi;
+      const documentedItems: Array<{name: string, params: string}> = [];
       let match;
 
       while ((match = methodPattern.exec(docContent)) !== null) {
-        documentedItems.push(match[1]);
+        documentedItems.push({
+          name: match[1],
+          params: match[2].trim()
+        });
       }
 
-      const codeFiles = await glob(CODE_FILE_PATTERNS, {
-        cwd: dirPath,
-        ignore: [
-          "**/node_modules/**",
-          "**/.git/**",
-          "**/dist/**",
-          "**/build/**",
-        ],
-      });
+      let codeFiles: string[] = [];
+      try {
+        codeFiles = await glob(CODE_FILE_PATTERNS, {
+          cwd: dirPath,
+          ignore: [
+            "**/node_modules/**",
+            "**/.git/**",
+            "**/dist/**",
+            "**/build/**",
+          ],
+        });
+      } catch (e: any) {
+        logger.error("Error finding code files", { error: e.message });
+      }
 
       const issues: Array<{
         item: string;
@@ -110,29 +135,50 @@ export async function handleVerifyTruth(args: any): Promise<any> {
         suggestion?: string;
       }> = [];
 
-      // Limit to 50 checks to avoid performance issues
+      // Limit to 50 checks
       for (const item of documentedItems.slice(0, 50)) {
         let found = false;
-        const escapedItem = escapeRegex(item);
+        let signatureMatch = false;
+        const escapedName = escapeRegex(item.name);
+        const docParamCount = item.params ? item.params.split(',').length : 0;
+
         for (const codeFile of codeFiles) {
           try {
             const content = await fs.readFile(
               path.join(dirPath, codeFile),
               "utf-8"
             );
-            if (new RegExp(`\\b${escapedItem}\\b`).test(content)) {
+            
+            // Search for the symbol in code with its param list
+            const codePattern = new RegExp(`(?:function|def|func|fn|method|class)\\s+${escapedName}\\s*\\(([^)]*)\\)`, 'gi');
+            let codeMatch;
+            while ((codeMatch = codePattern.exec(content)) !== null) {
               found = true;
-              break;
+              const codeParams = codeMatch[1].trim();
+              const codeParamCount = codeParams ? codeParams.split(',').length : 0;
+              
+              if (codeParamCount === docParamCount) {
+                signatureMatch = true;
+                break;
+              }
             }
+            if (signatureMatch) break;
           } catch (e) {
             // Skip
           }
         }
+
         if (!found) {
           issues.push({
-            item,
+            item: item.name,
             status: "not_found",
-            suggestion: "Method may have been renamed or removed",
+            suggestion: "Symbol not found in any code file.",
+          });
+        } else if (!signatureMatch) {
+          issues.push({
+            item: item.name,
+            status: "signature_mismatch",
+            suggestion: `Parameter count mismatch. Doc has ${docParamCount}, but code implementation differs.`,
           });
         }
       }
@@ -161,14 +207,19 @@ export async function handleVerifyTruth(args: any): Promise<any> {
   } catch (error: any) {
     return {
       content: [
-        { type: "text", text: `Error verifying documentation: ${error.message}` },
+        {
+          type: "text",
+          text: `Error verifying documentation: ${error.message}`,
+        },
       ],
       isError: true,
     };
   }
 }
 
-export async function handleSpotDelta(args: any): Promise<any> {
+export async function handleSpotDelta(
+  args: SpotDeltaArgs
+): Promise<McpToolResponse> {
   const { dirPath: rawPath, docPath, includeCodeSnippets } = args;
 
   try {
@@ -209,10 +260,15 @@ export async function handleSpotDelta(args: any): Promise<any> {
         }
       }
 
-      const codeFiles = await glob(CODE_FILE_PATTERNS, {
-        cwd: dirPath,
-        ignore: ["**/node_modules/**", "**/.git/**"],
-      });
+      let codeFiles: string[] = [];
+      try {
+        codeFiles = await glob(CODE_FILE_PATTERNS, {
+          cwd: dirPath,
+          ignore: ["**/node_modules/**", "**/.git/**"],
+        });
+      } catch (e: any) {
+        logger.error("Error finding code files", { error: e.message });
+      }
 
       const deltas: Array<{
         item: string;
@@ -268,13 +324,17 @@ export async function handleSpotDelta(args: any): Promise<any> {
     }
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error spotting delta: ${error.message}` }],
+      content: [
+        { type: "text", text: `Error spotting delta: ${error.message}` },
+      ],
       isError: true,
     };
   }
 }
 
-export async function handleCatchFossils(args: any): Promise<any> {
+export async function handleCatchFossils(
+  args: CatchFossilsArgs
+): Promise<McpToolResponse> {
   const { dirPath: rawPath, sinceCommit, priorityMode } = args;
 
   try {
@@ -285,10 +345,15 @@ export async function handleCatchFossils(args: any): Promise<any> {
 
     const release = await operationLimiter.acquire();
     try {
-      const docs = await glob("**/*.md", {
-        cwd: dirPath,
-        ignore: ["**/node_modules/**", "**/.git/**"],
-      });
+      let docs: string[] = [];
+      try {
+        docs = await glob("**/*.md", {
+          cwd: dirPath,
+          ignore: ["**/node_modules/**", "**/.git/**"],
+        });
+      } catch (e: any) {
+        logger.error("Error finding docs", { error: e.message });
+      }
 
       let changedFiles: string[] = [];
       try {
@@ -298,8 +363,8 @@ export async function handleCatchFossils(args: any): Promise<any> {
           logOptions.from = sinceCommit;
         }
         const log = await git.log(logOptions);
-        changedFiles = log.all.flatMap((commit) =>
-          commit.diff?.files?.map((f: any) => f.file) || []
+        changedFiles = log.all.flatMap(
+          (commit) => commit.diff?.files?.map((f: any) => f.file) || []
         );
       } catch (e) {
         // Git not available
@@ -369,7 +434,9 @@ export async function handleCatchFossils(args: any): Promise<any> {
     }
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error catching fossils: ${error.message}` }],
+      content: [
+        { type: "text", text: `Error catching fossils: ${error.message}` },
+      ],
       isError: true,
     };
   }

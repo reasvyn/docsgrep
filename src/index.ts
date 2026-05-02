@@ -16,7 +16,17 @@ import { fileURLToPath } from "node:url";
 import { logger } from "./utils/logger.js";
 import { operationLimiter } from "./utils/semaphore.js";
 import { validateStringParam, validateDirPath } from "./utils/validation.js";
-import { MAX_FILE_SIZE_TECH, MAX_FILE_SIZE_CONVENTIONS, MAX_FILE_SIZE_SAMPLE } from "./utils/constants.js";
+import { checkCapabilities, getCapabilityGapMessage } from "./utils/capabilities.js";
+
+// Types
+import {
+  type McpToolResponse,
+  type LintCodeArgs,
+  type GuardSecurityArgs,
+  type CatchBugsArgs,
+  type AskLintArgs,
+  type AskGuardArgs,
+} from "./types/tools.js";
 
 // Tool handlers
 import { handleSetupCamp, handlePurgeCache } from "./tools/workspace.js";
@@ -44,7 +54,7 @@ import {
 } from "./tools/help-info.js";
 
 // Existing tool imports
-import { performUniversalAudit as performAudit, generateUniversalAuditPrompt as generateAuditPrompt, type AuditReport } from "./best-practices.js";
+import { performUniversalAudit as performAudit, type AuditReport } from "./best-practices.js";
 import { getAuditPrompt } from "./audit.js";
 import { performSecurityAudit, generateSecurityAuditPrompt, type SecurityAuditReport } from "./security-audit.js";
 import { catchBugs, type BugReport } from "./bug-catcher.js";
@@ -65,6 +75,207 @@ const server = new Server(
     },
   }
 );
+
+// Modularized handlers to reduce nesting
+async function handleLintCodeTool(args: LintCodeArgs): Promise<McpToolResponse> {
+  const { dirPath: rawPath, filePatterns, focusAreas } = args;
+
+  try {
+    const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+    const release = await operationLimiter.acquire();
+    try {
+      const caps = await checkCapabilities();
+      logger.info("Starting universal code quality audit", {
+        dirPath,
+        filePatterns,
+        focusAreas,
+        capabilities: caps,
+      });
+
+      const report: AuditReport = await performAudit(dirPath, filePatterns);
+      
+      // Add capability warnings to recommendations
+      const gapMessages = getCapabilityGapMessage(caps);
+      report.recommendations.push(...gapMessages);
+
+      logger.info("Audit completed", {
+        filesScanned: report.summary.filesScanned,
+        totalIssues: report.summary.totalIssues,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                message: `Audit completed: ${report.summary.totalIssues} issues across ${report.summary.filesScanned} files. Documentation Score: ${report.summary.documentationScore}/100, Code Quality Score: ${report.summary.codeQualityScore}/100`,
+                summary: report.summary,
+                projectStructure: report.projectStructure,
+                detectedConventions: report.detectedConventions || {},
+                issues: report.issues || [],
+                strengths: report.strengths || [],
+                recommendations: report.recommendations || [],
+                capabilities: caps,
+                note:
+                  report.issues && report.issues.length >= 100
+                    ? "Results limited to 100 issues. There may be more issues."
+                    : undefined,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } finally {
+      release();
+    }
+  } catch (error: any) {
+    return {
+      content: [{ type: "text", text: `Error during audit: ${error.message}` }],
+      isError: true,
+    };
+  }
+}
+
+async function handleGuardSecurityTool(args: GuardSecurityArgs): Promise<McpToolResponse> {
+  const { dirPath: rawPath, filePatterns } = args;
+
+  try {
+    const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+    const release = await operationLimiter.acquire();
+    try {
+      const caps = await checkCapabilities();
+      logger.info("Starting security audit", { dirPath, filePatterns, capabilities: caps });
+
+      const report: SecurityAuditReport = await performSecurityAudit(
+        dirPath,
+        filePatterns
+      );
+      
+      const gapMessages = getCapabilityGapMessage(caps);
+      report.recommendations.push(...gapMessages);
+
+      logger.info("Security audit completed", {
+        filesScanned: report.summary.filesScanned,
+        totalIssues: report.summary.totalIssues,
+        riskLevel: report.summary.riskLevel,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                message: `Security audit completed: ${report.summary.totalIssues} issues found. Security Score: ${report.summary.securityScore}/100 (Risk Level: ${report.summary.riskLevel})`,
+                summary: report.summary,
+                owaspTop10: report.owaspTop10,
+                dependencyAnalysis: report.dependencyAnalysis,
+                secretsFound: report.secretsFound,
+                privacyIssues: report.privacyIssues,
+                complianceStatus: report.complianceStatus,
+                recommendations: report.recommendations,
+                capabilities: caps,
+                note:
+                  report.secretsFound.length >= 50
+                    ? "Secrets list limited to 50 items."
+                    : undefined,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } finally {
+      release();
+    }
+  } catch (error: any) {
+    return {
+      content: [
+        { type: "text", text: `Error during security audit: ${error.message}` },
+      ],
+      isError: true,
+    };
+  }
+}
+
+async function handleCatchBugsTool(args: CatchBugsArgs): Promise<McpToolResponse> {
+  const { dirPath: rawPath, filePatterns } = args;
+
+  try {
+    const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+    const release = await operationLimiter.acquire();
+    try {
+      logger.info("Starting bug catching", { dirPath, filePatterns });
+
+      const report: BugReport = await catchBugs(dirPath, filePatterns);
+
+      logger.info("Bug catching completed", {
+        filesScanned: report.summary.filesScanned,
+        totalIssues: report.summary.totalIssues,
+        riskLevel: report.summary.riskLevel,
+      });
+
+      return {
+        content: [
+          {
+            type: "text",
+            text: JSON.stringify(
+              {
+                message: `Bug analysis completed: ${report.summary.totalIssues} issues found. Bug Score: ${report.summary.bugScore}/100 (Risk Level: ${report.summary.riskLevel})`,
+                summary: report.summary,
+                categories: report.categories,
+                recommendations: report.recommendations,
+              },
+              null,
+              2
+            ),
+          },
+        ],
+      };
+    } finally {
+      release();
+    }
+  } catch (error: any) {
+    return {
+      content: [
+        { type: "text", text: `Error during bug catching: ${error.message}` },
+      ],
+      isError: true,
+    };
+  }
+}
+
+async function handleAskLintTool(args: AskLintArgs): Promise<McpToolResponse> {
+  const { dirPath: rawPath } = args;
+  try {
+    const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+    const prompt = await getAuditPrompt(dirPath);
+    return { content: [{ type: "text", text: prompt }] };
+  } catch (error: any) {
+    return {
+      content: [{ type: "text", text: `Error generating audit prompt: ${error.message}` }],
+      isError: true,
+    };
+  }
+}
+
+async function handleAskGuardTool(args: AskGuardArgs): Promise<McpToolResponse> {
+  const { dirPath: rawPath } = args;
+  try {
+    const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
+    const prompt = generateSecurityAuditPrompt(dirPath);
+    return { content: [{ type: "text", text: prompt }] };
+  } catch (error: any) {
+    return {
+      content: [{ type: "text", text: `Error generating security audit prompt: ${error.message}` }],
+      isError: true,
+    };
+  }
+}
 
 // Define the tools
 server.setRequestHandler(ListToolsRequestSchema, async () => {
@@ -210,6 +421,10 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             filePattern: {
               type: "string",
               description: "Optional. Regex pattern to filter which documentation files to search (e.g., 'README.*').",
+            },
+            contextLines: {
+              type: "number",
+              description: "Optional. Number of surrounding context lines to include (max 5).",
             },
           },
           required: ["dirPath", "pattern"],
@@ -523,295 +738,67 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
-  switch (request.params.name) {
-    case "setup_camp":
-      return await handleSetupCamp(request.params.arguments);
-    case "spy_stack":
-      return await handleSpyStack(request.params.arguments);
-    case "sniff_style":
-      return await handleSniffStyle(request.params.arguments);
-    case "hunt_docs":
-      return await handleHuntDocs(request.params.arguments);
-    case "fetch_repo":
-      return await handleFetchRepo(request.params.arguments);
-    case "peek_file":
-      return await handlePeekFile(request.params.arguments);
-    case "purge_cache":
-      return await handlePurgeCache(request.params.arguments);
-    case "grep_docs":
-      return await handleGrepDocs(request.params.arguments);
-    case "lint_code": {
-      const { dirPath: rawPath, filePatterns, focusAreas } = request.params
-        .arguments as {
-        dirPath: string;
-        filePatterns?: string[];
-        focusAreas?: string[];
-      };
+  const { name, arguments: args } = request.params;
 
-      try {
-        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-
-        const release = await operationLimiter.acquire();
-        try {
-          logger.info("Starting universal code quality audit", {
-            dirPath,
-            filePatterns,
-            focusAreas,
-          });
-
-          const report: AuditReport = await performAudit(
-            dirPath,
-            filePatterns
-          );
-
-          logger.info("Audit completed", {
-            filesScanned: report.summary.filesScanned,
-            totalIssues: report.summary.totalIssues,
-          });
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(
-                  {
-                    message: `Audit completed: ${report.summary.totalIssues} issues across ${report.summary.filesScanned} files. Documentation Score: ${report.summary.documentationScore}/100, Code Quality Score: ${report.summary.codeQualityScore}/100`,
-                    summary: report.summary,
-                    projectStructure: report.projectStructure,
-                    detectedConventions: report.detectedConventions || {},
-                    issues: report.issues || [],
-                    strengths: report.strengths || [],
-                    recommendations: report.recommendations || [],
-                    note:
-                      report.issues && report.issues.length >= 100
-                        ? "Results limited to 100 issues. There may be more issues."
-                        : undefined,
-                  },
-                  null,
-                  2
-                ),
-              },
-            ],
-          };
-        } finally {
-          release();
-        }
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error during audit: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
-      }
+  try {
+    switch (name) {
+      case "setup_camp":
+        return await handleSetupCamp(args as any);
+      case "spy_stack":
+        return await handleSpyStack(args as any);
+      case "sniff_style":
+        return await handleSniffStyle(args as any);
+      case "hunt_docs":
+        return await handleHuntDocs(args as any);
+      case "fetch_repo":
+        return await handleFetchRepo(args as any);
+      case "peek_file":
+        return await handlePeekFile(args as any);
+      case "purge_cache":
+        return await handlePurgeCache(args as any);
+      case "grep_docs":
+        return await handleGrepDocs(args as any);
+      case "lint_code":
+        return await handleLintCodeTool(args as any);
+      case "ask_lint":
+        return await handleAskLintTool(args as any);
+      case "guard_security":
+        return await handleGuardSecurityTool(args as any);
+      case "ask_guard":
+        return await handleAskGuardTool(args as any);
+      case "catch_bugs":
+        return await handleCatchBugsTool(args as any);
+      case "fathom_meaning":
+        return await handleFathomMeaning(args as any);
+      case "tldr_docs":
+        return await handleTldrDocs(args as any);
+      case "hunt_related":
+        return await handleHuntRelated(args as any);
+      case "smell_stale":
+        return await handleSmellStale(args as any);
+      case "sync_docs":
+        return await handleSyncDocs(args as any);
+      case "verify_truth":
+        return await handleVerifyTruth(args as any);
+      case "sense_surroundings":
+        return await handleSenseSurroundings(args as any);
+      case "spot_delta":
+        return await handleSpotDelta(args as any);
+      case "doc_the_tools":
+        return await handleDocTheTools(args as any);
+      case "catch_fossils":
+        return await handleCatchFossils(args as any);
+      default:
+        throw new McpError(
+          ErrorCode.MethodNotFound,
+          `Unknown tool: ${name}`
+        );
     }
-    case "ask_lint": {
-      const { dirPath: rawPath } = request.params.arguments as {
-        dirPath: string;
-      };
-
-      try {
-        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-
-        const prompt = await getAuditPrompt(dirPath);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: prompt,
-            },
-          ],
-        };
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error generating audit prompt: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-    case "guard_security": {
-      const { dirPath: rawPath, filePatterns } = request.params
-        .arguments as {
-        dirPath: string;
-        filePatterns?: string[];
-      };
-
-      try {
-        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-
-        const release = await operationLimiter.acquire();
-        try {
-          logger.info("Starting security audit", { dirPath, filePatterns });
-
-          const report: SecurityAuditReport = await performSecurityAudit(
-            dirPath,
-            filePatterns
-          );
-
-          logger.info("Security audit completed", {
-            filesScanned: report.summary.filesScanned,
-            totalIssues: report.summary.totalIssues,
-            riskLevel: report.summary.riskLevel,
-          });
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(
-                  {
-                    message: `Security audit completed: ${report.summary.totalIssues} issues found. Security Score: ${report.summary.securityScore}/100 (Risk Level: ${report.summary.riskLevel})`,
-                    summary: report.summary,
-                    owaspTop10: report.owaspTop10,
-                    dependencyAnalysis: report.dependencyAnalysis,
-                    secretsFound: report.secretsFound,
-                    privacyIssues: report.privacyIssues,
-                    complianceStatus: report.complianceStatus,
-                    recommendations: report.recommendations,
-                    note:
-                      report.secretsFound.length >= 50
-                        ? "Secrets list limited to 50 items."
-                        : undefined,
-                  },
-                  null,
-                  2
-                ),
-              },
-            ],
-          };
-        } finally {
-          release();
-        }
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error during security audit: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-    case "ask_guard": {
-      const { dirPath: rawPath } = request.params.arguments as {
-        dirPath: string;
-      };
-
-      try {
-        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-
-        const prompt = generateSecurityAuditPrompt(dirPath);
-
-        return {
-          content: [
-            {
-              type: "text",
-              text: prompt,
-            },
-          ],
-        };
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error generating security audit prompt: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-    case "catch_bugs": {
-      const { dirPath: rawPath, filePatterns } = request.params
-        .arguments as {
-        dirPath: string;
-        filePatterns?: string[];
-      };
-
-      try {
-        const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-
-        const release = await operationLimiter.acquire();
-        try {
-          logger.info("Starting bug catching", { dirPath, filePatterns });
-
-          const report: BugReport = await catchBugs(dirPath, filePatterns);
-
-          logger.info("Bug catching completed", {
-            filesScanned: report.summary.filesScanned,
-            totalIssues: report.summary.totalIssues,
-            riskLevel: report.summary.riskLevel,
-          });
-
-          return {
-            content: [
-              {
-                type: "text",
-                text: JSON.stringify(
-                  {
-                    message: `Bug analysis completed: ${report.summary.totalIssues} issues found. Bug Score: ${report.summary.bugScore}/100 (Risk Level: ${report.summary.riskLevel})`,
-                    summary: report.summary,
-                    categories: report.categories,
-                    recommendations: report.recommendations,
-                  },
-                  null,
-                  2
-                ),
-              },
-            ],
-          };
-        } finally {
-          release();
-        }
-      } catch (error: any) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Error during bug catching: ${error.message}`,
-            },
-          ],
-          isError: true,
-        };
-      }
-    }
-    case "fathom_meaning":
-      return await handleFathomMeaning(request.params.arguments);
-    case "tldr_docs":
-      return await handleTldrDocs(request.params.arguments);
-    case "hunt_related":
-      return await handleHuntRelated(request.params.arguments);
-    case "smell_stale":
-      return await handleSmellStale(request.params.arguments);
-    case "sync_docs":
-      return await handleSyncDocs(request.params.arguments);
-    case "verify_truth":
-      return await handleVerifyTruth(request.params.arguments);
-    case "sense_surroundings":
-      return await handleSenseSurroundings(request.params.arguments);
-    case "spot_delta":
-      return await handleSpotDelta(request.params.arguments);
-    case "doc_the_tools":
-      return await handleDocTheTools(request.params.arguments);
-    case "catch_fossils":
-      return await handleCatchFossils(request.params.arguments);
-    default:
-      throw new McpError(
-        ErrorCode.MethodNotFound,
-        `Unknown tool: ${request.params.name}`
-      );
+  } catch (error: any) {
+    return {
+      content: [{ type: "text", text: `Error: ${error.message}` }],
+      isError: true,
+    } as any;
   }
 });
 

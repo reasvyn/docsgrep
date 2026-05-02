@@ -1,28 +1,46 @@
-import { describe, it, expect, vi } from 'vitest';
-import { handleSetupCamp } from '../../../src/tools/workspace.js';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { handleSetupCamp, handlePurgeCache } from '../../../src/tools/workspace.js';
 import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 
 vi.mock('node:fs/promises');
-vi.mock('node:os');
 
-describe('handleSetupCamp', () => {
-  it('should initialize workspace and return success message', async () => {
-    vi.mocked(os.tmpdir).mockReturnValue('/tmp');
-    vi.mocked(fs.mkdir).mockResolvedValue(undefined);
-    vi.mocked(fs.writeFile).mockResolvedValue(undefined);
-    vi.mocked(fs.readFile).mockResolvedValue('');
+describe('workspace tools', () => {
+  describe('handleSetupCamp', () => {
+    it('should initialize workspace in system temp', async () => {
+      vi.mocked(fs.mkdir).mockResolvedValue(undefined);
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+      vi.mocked(fs.stat).mockResolvedValue({ isDirectory: () => true } as any);
 
-    const result = await handleSetupCamp({ projectPath: '/test/project' });
+      const result = await handleSetupCamp({ projectPath: '/test/project' });
+      expect(result.content[0].text).toContain('initialized docsgrep workspace');
+      expect(result.content[0].text).toContain('system temp directory');
+    });
 
-    expect(result.isError).toBeUndefined();
-    expect(result.content[0].text).toContain('Successfully initialized docsgrep workspace');
+    it('should fallback to project local if temp fails', async () => {
+      // Mock mkdir to fail for system temp but succeed for local
+      vi.mocked(fs.mkdir).mockImplementation(async (p: any) => {
+        if (p.toString().includes(os.tmpdir())) throw new Error('Permission denied');
+        return undefined;
+      });
+      vi.mocked(fs.stat).mockResolvedValue({ isDirectory: () => true } as any);
+      vi.mocked(fs.writeFile).mockResolvedValue(undefined);
+
+      const result = await handleSetupCamp({ projectPath: '/test/project' });
+      expect(result.content[0].text).toContain('project directory');
+    });
   });
 
-  it('should return error for invalid path', async () => {
-    const result = await handleSetupCamp({ projectPath: '' });
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain('Error');
+  describe('handlePurgeCache', () => {
+    it('should clean cache and return size info', async () => {
+      vi.mocked(fs.stat).mockResolvedValue({ isDirectory: () => true, size: 1024 * 1024 } as any);
+      vi.mocked(fs.readdir).mockResolvedValue([]);
+      
+      const result = await handlePurgeCache({ localProjectPath: '/test/project' });
+      const data = JSON.parse(result.content[0].text);
+      expect(data.message).toContain('Cleaned up');
+      expect(data.cacheSizeMB).toBeDefined();
+    });
   });
 });

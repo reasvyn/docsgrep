@@ -10,15 +10,20 @@ import { analyzeProjectStyle } from "../project-style.js";
 import { cloneOrUpdateRepo, getRepoCachePath } from "../utils/git.js";
 import { logger } from "../utils/logger.js";
 import { findDocsInDir as findDocsInDirUtil } from "../tools/documentation.js";
+import {
+  type McpToolResponse,
+  type DocTheToolsArgs,
+  type SpyStackArgs,
+  type SniffStyleArgs,
+  type FetchRepoArgs,
+} from "../types/tools.js";
 
-export async function handleDocTheTools(args: any): Promise<any> {
+export async function handleDocTheTools(
+  args: DocTheToolsArgs
+): Promise<McpToolResponse> {
   const { toolName, includeExamples } = args;
 
-  if (includeExamples === false) {
-    // Return without examples
-  }
-
-  const toolHelp: Record<string, any> = {
+  const toolHelp: Record<string, { description: string; example: string }> = {
     setup_camp: {
       description: "Initialize docsgrep workspace",
       example: `setup_camp(projectPath: "/home/user/myproject")`,
@@ -44,15 +49,15 @@ export async function handleDocTheTools(args: any): Promise<any> {
       example: `peek_file(filePath: "/home/user/myproject/README.md")`,
     },
     grep_docs: {
-      description: "Search in documentation",
-      example: `grep_docs(dirPath: "/home/user/myproject", pattern: "Internship")`,
+      description: "Search in documentation with optional surrounding context",
+      example: `grep_docs(dirPath: "/home/user/myproject", pattern: "Internship", contextLines: 2)`,
     },
     lint_code: {
-      description: "Enterprise code quality audit",
+      description: "Enterprise code quality audit with smart noise reduction",
       example: `lint_code(dirPath: "/home/user/myproject")`,
     },
     catch_bugs: {
-      description: "Catch bugs and issues",
+      description: "Catch bugs and issues with intelligent try-catch detection",
       example: `catch_bugs(dirPath: "/home/user/myproject")`,
     },
     fathom_meaning: {
@@ -76,11 +81,11 @@ export async function handleDocTheTools(args: any): Promise<any> {
       example: `sync_docs(dirPath: "/home/user/myproject")`,
     },
     verify_truth: {
-      description: "Validate doc consistency",
+      description: "Validate doc consistency including function signature (arity)",
       example: `verify_truth(dirPath: "/home/user/myproject", docPath: "docs/api.md")`,
     },
     sense_surroundings: {
-      description: "Smart context provider",
+      description: "Smart context provider with import-based dependency analysis",
       example: `sense_surroundings(dirPath: "/home/user/myproject", currentFilePath: "src/auth.ts")`,
     },
     spot_delta: {
@@ -106,21 +111,27 @@ export async function handleDocTheTools(args: any): Promise<any> {
         isError: true,
       };
     }
+
+    const result = { tool: toolName, ...help };
+    if (includeExamples === false) {
+      delete (result as any).example;
+    }
+
     return {
       content: [
         {
           type: "text",
-          text: JSON.stringify(
-            {
-              tool: toolName,
-              ...help,
-            },
-            null,
-            2
-          ),
+          text: JSON.stringify(result, null, 2),
         },
       ],
     };
+  }
+
+  const finalTools = { ...toolHelp };
+  if (includeExamples === false) {
+    Object.keys(finalTools).forEach((key) => {
+      delete (finalTools[key] as any).example;
+    });
   }
 
   return {
@@ -129,8 +140,10 @@ export async function handleDocTheTools(args: any): Promise<any> {
         type: "text",
         text: JSON.stringify(
           {
-            message: `Help for all ${Object.keys(toolHelp).length} docsgrep tools.`,
-            tools: toolHelp,
+            message: `Help for all ${
+              Object.keys(finalTools).length
+            } docsgrep tools.`,
+            tools: finalTools,
           },
           null,
           2
@@ -140,7 +153,9 @@ export async function handleDocTheTools(args: any): Promise<any> {
   };
 }
 
-export async function handleSpyStack(args: any): Promise<any> {
+export async function handleSpyStack(
+  args: SpyStackArgs
+): Promise<McpToolResponse> {
   const { dirPath: rawPath } = args;
 
   try {
@@ -157,7 +172,9 @@ export async function handleSpyStack(args: any): Promise<any> {
           type: "text",
           text: JSON.stringify(
             {
-              message: `Found ${Object.keys(analysis).length} package manager files in local directory.`,
+              message: `Found ${
+                Object.keys(analysis).length
+              } package manager files in local directory.`,
               files: analysis,
             },
             null,
@@ -168,13 +185,20 @@ export async function handleSpyStack(args: any): Promise<any> {
     };
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error analyzing tech stack: ${error.message}` }],
+      content: [
+        {
+          type: "text",
+          text: `Error analyzing tech stack: ${error.message}`,
+        },
+      ],
       isError: true,
     };
   }
 }
 
-export async function handleSniffStyle(args: any): Promise<any> {
+export async function handleSniffStyle(
+  args: SniffStyleArgs
+): Promise<McpToolResponse> {
   const { dirPath: rawPath } = args;
 
   try {
@@ -217,13 +241,20 @@ export async function handleSniffStyle(args: any): Promise<any> {
     }
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error analyzing project style: ${error.message}` }],
+      content: [
+        {
+          type: "text",
+          text: `Error analyzing project style: ${error.message}`,
+        },
+      ],
       isError: true,
     };
   }
 }
 
-export async function handleFetchRepo(args: any): Promise<any> {
+export async function handleFetchRepo(
+  args: FetchRepoArgs
+): Promise<McpToolResponse> {
   const { repoUrl, branch, localProjectPath, authToken, sshKeyPath } = args;
 
   try {
@@ -235,7 +266,9 @@ export async function handleFetchRepo(args: any): Promise<any> {
       throw new Error("Invalid repoUrl: not a valid URL");
     }
     if (!/^(https?|git|ssh):\/\//.test(validatedUrl)) {
-      throw new Error("Invalid repoUrl: must use http, https, git, or ssh protocol");
+      throw new Error(
+        "Invalid repoUrl: must use http, https, git, or ssh protocol"
+      );
     }
 
     const targetDir = getRepoCachePath(validatedUrl, branch, localProjectPath);
@@ -270,46 +303,81 @@ export async function handleFetchRepo(args: any): Promise<any> {
     };
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error cloning or exploring remote repo: ${error.message}` }],
+      content: [
+        {
+          type: "text",
+          text: `Error cloning or exploring remote repo: ${error.message}`,
+        },
+      ],
       isError: true,
     };
   }
 }
 
 // Helper function to analyze project context (language-agnostic)
-async function analyzeProjectContext(dirPath: string) {
+async function analyzeProjectContext(dirPath: string): Promise<Record<string, string>> {
   const commonFiles = [
     // Node.js
-    "package.json", "yarn.lock", "pnpm-lock.yaml", "bun.lockb",
+    "package.json",
+    "yarn.lock",
+    "pnpm-lock.yaml",
+    "bun.lockb",
     // PHP
-    "composer.json", "composer.lock",
+    "composer.json",
+    "composer.lock",
     // Go
-    "go.mod", "go.sum",
+    "go.mod",
+    "go.sum",
     // Rust
-    "Cargo.toml", "Cargo.lock",
+    "Cargo.toml",
+    "Cargo.lock",
     // Python
-    "requirements.txt", "pyproject.toml", "Pipfile", "Pipfile.lock", "setup.py",
+    "requirements.txt",
+    "pyproject.toml",
+    "Pipfile",
+    "Pipfile.lock",
+    "setup.py",
     // Ruby
-    "Gemfile", "Gemfile.lock",
+    "Gemfile",
+    "Gemfile.lock",
     // Java / Kotlin / Scala
-    "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle",
+    "pom.xml",
+    "build.gradle",
+    "build.gradle.kts",
+    "settings.gradle",
     // C / C++
-    "CMakeLists.txt", "Makefile", "conanfile.txt", "conanfile.py",
+    "CMakeLists.txt",
+    "Makefile",
+    "conanfile.txt",
+    "conanfile.py",
     // .NET / C#
-    "*.csproj", "*.fsproj", "packages.config",
+    "*.csproj",
+    "*.fsproj",
+    "packages.config",
     // Elixir / Erlang
-    "mix.exs", "mix.lock",
+    "mix.exs",
+    "mix.lock",
     // Dart
-    "pubspec.yaml", "pubspec.lock",
+    "pubspec.yaml",
+    "pubspec.lock",
     // Additional
-    "Package.swift", "shard.yml", "rebar.config",
+    "Package.swift",
+    "shard.yml",
+    "rebar.config",
   ];
 
   const allPatterns = commonFiles;
   const foundFiles = await glob(allPatterns, {
     cwd: dirPath,
     nocase: true,
-    ignore: ["**/node_modules/**", "**/vendor/**", "**/.git/**", "**/target/**", "**/dist/**", "**/build/**"],
+    ignore: [
+      "**/node_modules/**",
+      "**/vendor/**",
+      "**/.git/**",
+      "**/target/**",
+      "**/dist/**",
+      "**/build/**",
+    ],
   });
 
   const analysis: Record<string, string> = {};

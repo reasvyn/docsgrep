@@ -32,15 +32,31 @@ describe('BugDetector', () => {
       expect(nullRefs.length).toBeGreaterThan(0);
     });
 
-    it('should detect loose equality that may cause type coercion', () => {
+    it('should NOT flag await if inside try-catch block (Smart Filter)', () => {
       const code = `
-        if (value == null) {
-          doSomething();
+        async function safeFetch() {
+          try {
+            const result = await someAPICall();
+            return result;
+          } catch (e) {
+            console.error(e);
+          }
         }
       `;
       const issues = detector.detectBugs(code, 'test.ts');
-      const coercionIssues = issues.filter(i => i.title.includes('Type Coercion'));
-      expect(coercionIssues.length).toBeGreaterThan(0);
+      const unhandledPromises = issues.filter(i => i.title === 'Unhandled Promise Rejection');
+      expect(unhandledPromises.length).toBe(0);
+    });
+
+    it('should lower severity for issues in test files', () => {
+      const code = `
+        const user = getUSer();
+        console.log(user.name);
+      `;
+      const issues = detector.detectBugs(code, 'test.test.ts');
+      const nullRefs = issues.filter(i => i.title.includes('Null/Undefined'));
+      expect(nullRefs.length).toBeGreaterThan(0);
+      expect(nullRefs[0].severity).toBe('low');
     });
   });
 

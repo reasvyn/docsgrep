@@ -9,10 +9,19 @@ export async function withTimeout<T>(
   ms: number,
   op: string
 ): Promise<T> {
-  const timeout = new Promise<never>((_, reject) =>
-    setTimeout(() => reject(new Error(`${op} timed out after ${ms}ms`)), ms)
-  );
-  return Promise.race([promise, timeout]);
+  let timeoutId: NodeJS.Timeout;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => reject(new Error(`${op} timed out after ${ms}ms`)), ms);
+  });
+
+  try {
+    const result = await Promise.race([promise, timeout]);
+    clearTimeout(timeoutId!);
+    return result;
+  } catch (error) {
+    clearTimeout(timeoutId!);
+    throw error;
+  }
 }
 
 export async function withRetry<T>(
@@ -28,9 +37,12 @@ export async function withRetry<T>(
       lastError = e;
       logger.warn(`${op} attempt ${i + 1} failed`, { error: e.message });
       if (i < attempts - 1) {
-        await new Promise((resolve) =>
-          setTimeout(resolve, 1000 * Math.pow(2, i))
-        ); // Exponential backoff
+        let retryTimeoutId: NodeJS.Timeout;
+        await new Promise((resolve) => {
+          retryTimeoutId = setTimeout(resolve, 1000 * Math.pow(2, i));
+        }).finally(() => {
+          if (retryTimeoutId) clearTimeout(retryTimeoutId);
+        }); // Exponential backoff
       }
     }
   }

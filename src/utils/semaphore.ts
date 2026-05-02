@@ -17,6 +17,9 @@ export class Semaphore {
 
     return new Promise((resolve) => {
       this.queue.push(() => {
+        // permits is already 0 here, it will be decremented 
+        // by the logic that called release() or when we are called
+        // actually we should decrement it when we are about to resolve
         this.permits--;
         resolve(() => this.release());
       });

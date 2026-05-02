@@ -295,6 +295,29 @@ export function logout() {
     });
   });
 
+  describe('verify_truth with signature validation', () => {
+    it('should detect parameter count mismatch', async () => {
+      const mismatchDocPath = path.join(testProjectPath, 'docs', 'mismatch.md');
+      await fs.writeFile(
+        mismatchDocPath,
+        `# Mismatch Test\n\nfunction login(username, password, extra) {}\n`
+      );
+
+      const result = await client.callTool({
+        name: 'verify_truth',
+        arguments: {
+          dirPath: testProjectPath,
+          docPath: mismatchDocPath,
+        },
+      });
+
+      const data = JSON.parse((result.content as any)[0].text);
+      const signatureIssue = data.issues.find((i: any) => i.status === 'signature_mismatch');
+      expect(signatureIssue).toBeDefined();
+      expect(signatureIssue.suggestion).toContain('Parameter count mismatch');
+    });
+  });
+
   describe('sense_surroundings', () => {
     it('should provide context for current file', async () => {
       const result = await client.callTool({

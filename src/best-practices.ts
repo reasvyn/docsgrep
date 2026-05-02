@@ -1,6 +1,8 @@
 // Universal code quality rules that apply across ALL programming languages
 // These are language-agnostic patterns that indicate code quality issues
 
+import { DEFAULT_IGNORE_PATTERNS } from "./utils/constants.js";
+
 export interface CodeIssue {
   file: string;
   line?: number;
@@ -233,14 +235,18 @@ class UniversalCodeAnalyzer {
     const magicNumberRegex = /(?<![.\w'"$])\d{2,}(?![.\w])/g;
     const magicNumbers = content.match(magicNumberRegex);
     if (magicNumbers && magicNumbers.length > 3) {
-      issues.push({
-        file: filePath,
-        severity: 'low',
-        category: 'Code Quality',
-        title: 'Magic Numbers',
-        description: `Found ${magicNumbers.length} magic numbers. Use named constants.`,
-        suggestion: 'Extract magic numbers to named constants with descriptive names.',
-      });
+      // Filter out common safe numbers and scales
+      const filtered = magicNumbers.filter(n => !['10', '100', '1000'].includes(n));
+      if (filtered.length > 3) {
+        issues.push({
+          file: filePath,
+          severity: 'low',
+          category: 'Code Quality',
+          title: 'Magic Numbers',
+          description: `Found ${filtered.length} magic numbers (excluding common scales). Use named constants.`,
+          suggestion: 'Extract magic numbers to named constants with descriptive names.',
+        });
+      }
     }
     
     // 7. Duplicate code detection (simple: repeated lines)
@@ -306,17 +312,7 @@ export async function performUniversalAudit(
   for (const pattern of patterns) {
     const matches = await (await import('glob')).glob(pattern, {
       cwd: dirPath,
-      ignore: [
-        '**/node_modules/**',
-        '**/vendor/**',
-        '**/.git/**',
-        '**/dist/**',
-        '**/build/**',
-        '**/*.test.*',
-        '**/*.spec.*',
-        '**/test/**',
-        '**/tests/**',
-      ],
+      ignore: DEFAULT_IGNORE_PATTERNS,
     });
     
     for (const match of matches.slice(0, 50)) { // Limit to 50 files for performance
@@ -421,7 +417,7 @@ async function analyzeProjectStructure(dirPath: string): Promise<AuditReport['pr
 async function fileExists(dirPath: string, patterns: string[]): Promise<boolean> {
   const glob = (await import('glob')).glob;
   for (const pattern of patterns) {
-    const matches = await glob(pattern, { cwd: dirPath, ignore: ['**/node_modules/**', '**/.git/**'] });
+    const matches = await glob(pattern, { cwd: dirPath, ignore: DEFAULT_IGNORE_PATTERNS });
     if (matches.length > 0) return true;
   }
   return false;
@@ -445,7 +441,7 @@ async function findEntryPoints(dirPath: string): Promise<string[]> {
   for (const pattern of commonEntryPoints) {
     const matches = await glob(pattern, {
       cwd: dirPath,
-      ignore: ['**/node_modules/**', '**/.git/**'],
+      ignore: DEFAULT_IGNORE_PATTERNS,
     });
     entryPoints.push(...matches);
   }
