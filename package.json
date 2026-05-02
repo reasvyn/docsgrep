@@ -1,6 +1,6 @@
 {
   "name": "@anovise/docsgrep",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "MCP Server to explore local and remote documentation",
   "type": "module",
   "bin": {
