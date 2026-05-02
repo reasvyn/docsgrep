@@ -2,41 +2,7 @@
 // Focuses on: runtime errors, potential bugs, race conditions, memory leaks, 
 // dependency coupling, and performance issues with large data handling
 
-export interface BugIssue {
-  file: string;
-  line?: number;
-  severity: 'critical' | 'high' | 'medium' | 'low' | 'info';
-  category: string;
-  title: string;
-  description: string;
-  evidence?: string;
-  impact: string;
-  remediation: string;
-  references?: string[];
-}
-
-export interface BugReport {
-  summary: {
-    filesScanned: number;
-    totalIssues: number;
-    critical: number;
-    high: number;
-    medium: number;
-    low: number;
-    info: number;
-    bugScore: number; // 0-100, higher is better
-    riskLevel: 'Critical' | 'High' | 'Medium' | 'Low' | 'Info';
-  };
-  categories: {
-    category: string;
-    title: string;
-    issues: BugIssue[];
-    status: 'pass' | 'warning' | 'fail';
-  }[];
-  recommendations: string[];
-}
-
-class BugDetector {
+export class BugDetector {
   
   // 1. Runtime Error Patterns
   private runtimeErrorPatterns = {

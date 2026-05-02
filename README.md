@@ -94,10 +94,96 @@ Add the following to your `claude_desktop_config.json`:
       - `filePatterns` (array of strings, optional): Array of glob patterns to specify which files to audit (e.g., ['src/**/*.tsx']).
       - `focusAreas` (array of strings, optional): Focus audit on specific areas: 'dead_code', 'structure', 'performance', 'naming', 'all'.
 
-11. `get_audit_prompt`
+ 11. `get_audit_prompt`
     - **Description**: Generates an interactive prompt to ask the user what they want to audit. Helps guide the audit process by showing detected tech stack and available options.
     - **Arguments**:
       - `dirPath` (string): The absolute path to the local directory.
+
+ 12. `catch_bugs`
+    - **Description**: Catches bugs, errors, warnings, and potential issues in code: race conditions, memory leaks, runtime errors, dependency coupling, and performance issues with large data handling.
+    - **Arguments**:
+      - `dirPath` (string): The absolute path to the local directory to analyze.
+      - `filePatterns` (array of strings, optional): Array of glob patterns to specify which files to scan (e.g., ['src/**/*.ts']).
+
+ 13. `get_security_audit_prompt`
+    - **Description**: Generates an interactive prompt for security auditing. Shows what will be scanned (OWASP Top 10, secrets, privacy, dependencies) and available options.
+    - **Arguments**:
+      - `dirPath` (string): The absolute path to the local directory.
+
+ 14. `security_audit`
+    - **Description**: Performs an enterprise-grade security audit covering OWASP Top 10, ISO/IEC 27001, secrets detection, privacy (GDPR/CCPA), and dependency vulnerabilities. Provides comprehensive security analysis with remediation steps.
+    - **Arguments**:
+      - `dirPath` (string): The absolute path to the local directory to audit.
+      - `filePatterns` (array of strings, optional): Array of glob patterns to specify which files to scan (e.g., ['**/*.js', '**/*.env']).
+
+## 🐛 Bug Catcher (catch_bugs) - Professional Bug Detection
+
+The `catch_bugs` tool provides **comprehensive bug detection** that focuses on real runtime issues:
+
+### 🔍 What It Detects
+
+#### 1. **Runtime Errors**
+- **Unhandled Promise Rejections** - `.then()` without `.catch()`, `await` without `try-catch`
+- **Null/Undefined Dereference** - Property access without null checks
+- **Uninitialized Variables** - Variables declared but not initialized
+- **Type Coercion Issues** - Loose equality (`==`) that may cause unexpected behavior
+
+#### 2. **Race Conditions**
+- **Unsynchronized Shared State** - Shared variable modifications without synchronization
+- **Missing Async/Await** - Mixing async patterns inconsistently
+- **Concurrent Modification** - Array/object modification during iteration
+
+#### 3. **Memory Leaks**
+- **Event Listener Leaks** - Listeners added without removal
+- **Uncleared Intervals/Timers** - `setInterval` without `clearInterval`
+- **Large Object References** - Caches or collections without size limits
+- **Closure Memory Leaks** - Deep closures retaining large scopes
+
+#### 4. **Dependency Coupling**
+- **Circular Dependencies** - Mutual dependencies between modules
+- **Tight Coupling** - Excessive direct instantiation, many imports
+- **God Object/Module** - Modules with too many exports (violating Single Responsibility)
+
+#### 5. **Performance Issues (Large Data Handling)**
+- **Inefficient Loops** - Loop conditions recalculating `.length` each iteration
+- **Synchronous Large File Operations** - `readFileSync`/`writeFileSync` blocking event loop
+- **Memory-Heavy Operations** - Chained array operations, large JSON parsing
+- **Unbounded Recursion** - Recursive functions without depth limits
+
+#### 6. **Unresolved Issues**
+- **TODO/FIXME/HACK** - Unresolved comments indicating known issues
+- **Console/Debug Statements** - Debug code left in production
+- **Deprecated API Usage** - Using deprecated functions (e.g., `Date.getYear()`)
+
+### 📊 Bug Score & Risk Assessment
+- **Bug Score** (0-100): Higher is better
+  - Calculated based on severity, density, and issue types
+  - Deducts points for critical/high issues and bug density
+- **Risk Levels**:
+  - **Low** (90-100): Minimal bug risk
+  - **Medium** (70-89): Some issues to address
+  - **High** (50-69): Significant bug risk
+  - **Critical** (<50): Urgent bugs need fixing
+
+### 🎯 Categories & Status
+Each category shows:
+- **pass** - No issues detected ✓
+- **warning** - Some issues found ⚠️
+- **fail** - Critical issues present ✗
+
+### 💼 Professional Features
+- ✅ **Structured Detection** - 6 major categories, 20+ pattern types
+- ✅ **Severity Scoring** - critical/high/medium/low/info
+- ✅ **Actionable Remediation** - Specific fix suggestions for each issue
+- ✅ **Self-Exclusion** - Won't false-positive on its own source code
+- ✅ **Language Agnostic** - Works with JS, TS, Python, Go, Rust, etc.
+- ✅ **Detailed Reports** - File, line number, evidence, impact, remediation
+
+### 📂 Works With Any Project
+- ✅ Node.js / TypeScript (Express, Next.js, etc.)
+- ✅ Python (Django, Flask, FastAPI)
+- ✅ Go, Rust, Ruby, Java, C/C++, C#, PHP, Swift, Dart
+- ✅ No configuration needed - analyzes YOUR code automatically
 
 ## Enterprise-Grade Code Quality Audit (Language-Agnostic)
 
