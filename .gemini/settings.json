@@ -1,8 +1,0 @@
-{
-    "mcpServers": {
-        "docsgrep": {
-            "command": ["npx"],
-            "args": ["tsx", "src/index"]
-        }
-    }
-}
