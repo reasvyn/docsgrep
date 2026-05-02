@@ -15,7 +15,8 @@ import * as path from "node:path";
 import * as os from "node:os";
 import * as crypto from "node:crypto";
 import { fileURLToPath } from "node:url";
-import { performAudit, generateAuditPrompt, type AuditReport } from "./audit.js";
+import { performUniversalAudit as performAudit, generateUniversalAuditPrompt as generateAuditPrompt, type AuditReport } from "./best-practices.js";
+import { getAuditPrompt } from "./audit.js";
 
 // Structured logger
 class Logger {
@@ -1055,13 +1056,15 @@ case "explore_remote_repo": {
         
         const release = await operationLimiter.acquire();
         try {
-          logger.info("Starting code quality audit", { dirPath, filePatterns, focusAreas });
+          logger.info("Starting universal code quality audit", { dirPath, filePatterns, focusAreas });
           
-          const report: AuditReport = await performAudit(dirPath, filePatterns);
+          // Use the new universal audit function
+          const { performUniversalAudit } = await import('./best-practices.js');
+          const report: AuditReport = await performUniversalAudit(dirPath, filePatterns);
           
           logger.info("Audit completed", { 
             filesScanned: report.summary.filesScanned,
-            totalFindings: report.summary.totalFindings 
+            totalIssues: report.summary.totalIssues 
           });
 
           return {
@@ -1070,14 +1073,14 @@ case "explore_remote_repo": {
                 type: "text",
                 text: JSON.stringify(
                   {
-                    message: `Audit completed: ${report.summary.totalFindings} findings across ${report.summary.filesScanned} files.`,
+                    message: `Audit completed: ${report.summary.totalIssues} issues across ${report.summary.filesScanned} files. Documentation Score: ${report.summary.documentationScore}/100, Code Quality Score: ${report.summary.codeQualityScore}/100`,
                     summary: report.summary,
-                    techStack: Object.keys(report.techStack),
-                    conventions: report.conventions,
-                    bestPracticesApplied: report.bestPracticesApplied,
-                    findings: report.findings, // Limited to 100 in performAudit
-                    recommendations: report.recommendations,
-                    note: report.findings.length >= 100 ? "Results limited to 100 findings. There may be more issues." : undefined,
+                    projectStructure: report.projectStructure,
+                    detectedConventions: report.detectedConventions || {},
+                    issues: report.issues || [], // Limited to 100 in performAudit
+                    strengths: report.strengths || [],
+                    recommendations: report.recommendations || [],
+                    note: report.issues && report.issues.length >= 100 ? "Results limited to 100 issues. There may be more issues." : undefined,
                   },
                   null,
                   2
@@ -1107,9 +1110,7 @@ case "explore_remote_repo": {
       try {
         const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
         
-        // Analyze tech stack for the prompt
-        const techStack = await analyzeProjectContext(dirPath);
-        const prompt = generateAuditPrompt(dirPath, techStack);
+        const prompt = await getAuditPrompt(dirPath);
         
         return {
           content: [

@@ -99,30 +99,46 @@ Add the following to your `claude_desktop_config.json`:
     - **Arguments**:
       - `dirPath` (string): The absolute path to the local directory.
 
-## Enterprise-Grade Code Quality Audit
+## Enterprise-Grade Code Quality Audit (Language-Agnostic)
 
-The `audit_code_quality` tool provides comprehensive code analysis:
+The `audit_code_quality` tool provides **universal** code analysis that works across ALL programming languages and tech stacks:
 
-### What It Checks
-- **Dead Code**: Unused imports, variables, functions
-- **Code Structure**: God classes/functions, file size violations
-- **Performance**: React performance anti-patterns, unnecessary re-renders
-- **Naming Conventions**: PEP 8 (Python), PascalCase (React components), etc.
-- **Framework Best Practices**: Next.js App Router, data fetching patterns
-- **Standards Compliance**: SOC (Separation of Concerns), DRY, SOLID principles
+### 🔍 What It Checks (Universal)
+- **Dead Code**: Unused variables, functions, duplicate code (DRY violations)
+- **Code Structure**: Overly long files/functions, God objects (Single Responsibility)
+- **Readability**: Deep nesting, long lines, magic numbers
+- **Technical Debt**: TODO/FIXME comments, missing documentation
+- **Naming Conventions**: Auto-detects camelCase, snake_case, PascalCase, UPPER_SNAKE
+- **Code Style**: Auto-detects indentation (spaces/tabs), quote style, comment patterns
+- **Project Organization**: Documentation coverage, linter config, tests, CI/CD
 
-### Best Practices Included
-- **Generic**: Applicable to all codebases
-- **Next.js**: App Router, Server/Client Components, data fetching
-- **React**: Component structure, performance optimization
-- **Python**: PEP 8 compliance
-- **Tech Stack Specific**: Based on detected package managers and frameworks
+### 🧠 How It Works (Pattern-Based Analysis)
+1. **No Tech Stack Assumptions**: Doesn't assume specific frameworks or languages
+2. **Automatic Pattern Detection**: 
+   - Analyzes actual code to detect naming styles (camelCase, snake_case, etc.)
+   - Detects indentation preferences (spaces vs tabs, width)
+   - Identifies quote styles (single, double, backtick)
+   - Measures average line length and comment coverage
+3. **Documentation Inference**: When docs are missing, reads patterns FROM the code itself
+4. **Universal Code Smells**: Detects issues that apply to ALL languages (nesting, length, duplication)
 
-### Audit Workflow
-1. Use `get_audit_prompt` to see what can be audited
-2. Run `audit_code_quality` with optional focus areas
-3. Review the report with findings and recommendations
-4. Apply fixes using AI agents with the detailed suggestions provided
+### 📊 Audit Scores
+- **Documentation Score** (0-100): Based on README, docs/, linter config, tests, CI
+- **Code Quality Score** (0-100): Based on issues found per file
+- **Strengths Identified**: What the project does well
+- **Actionable Recommendations**: Prioritized by severity (critical → high → medium → low)
+
+### 🎯 Audit Workflow
+1. **`get_audit_prompt`**: Generates interactive prompt showing detected project structure
+2. **`audit_code_quality`**: Runs comprehensive universal audit
+3. **Review Report**: JSON report with findings, scores, and recommendations
+4. **AI Agent Integration**: Use detailed suggestions to fix issues automatically
+
+### 📂 Works With Any Project
+- ✅ JavaScript / TypeScript (React, Next.js, Vue, Angular, etc.)
+- ✅ Python (Django, Flask, FastAPI, etc.)
+- ✅ Go, Rust, Ruby, Java, C/C++, C#, PHP, Swift, Dart, Elixir, and more
+- ✅ No configuration needed - adapts to YOUR project's conventions
 
 ## Local Development
 
