@@ -30,11 +30,21 @@ export async function handleSetupCamp(
       validateStringParam(rawPath, "projectPath")
     );
 
-    // Try system temp directory first
+    // Prioritize project directory for persistence, fallback to system temp
     let workspacePath: string;
     let usedSystemTemp = false;
 
     try {
+      const projectLocalPath = path.join(projectPath, ".docsgrep");
+      await fs.mkdir(path.join(projectLocalPath, "cache", "repos"), { recursive: true });
+      await fs.mkdir(path.join(projectLocalPath, "logs"), { recursive: true });
+      await fs.mkdir(path.join(projectLocalPath, "reports"), {
+        recursive: true,
+      });
+      workspacePath = projectLocalPath;
+      usedSystemTemp = false;
+    } catch (e) {
+      // Fallback to system temp directory
       const systemTempPath = path.join(
         os.tmpdir(),
         "docsgrep",
@@ -47,16 +57,6 @@ export async function handleSetupCamp(
       });
       workspacePath = systemTempPath;
       usedSystemTemp = true;
-    } catch (e) {
-      // Fallback to project directory
-      const projectLocalPath = path.join(projectPath, ".docsgrep");
-      await fs.mkdir(path.join(projectLocalPath, "repos"), { recursive: true });
-      await fs.mkdir(path.join(projectLocalPath, "logs"), { recursive: true });
-      await fs.mkdir(path.join(projectLocalPath, "reports"), {
-        recursive: true,
-      });
-      workspacePath = projectLocalPath;
-      usedSystemTemp = false;
     }
 
     const contextInfo = {
@@ -71,25 +71,24 @@ export async function handleSetupCamp(
       JSON.stringify(contextInfo, null, 2)
     );
 
-    // Update .gitignore
-    if (!usedSystemTemp) {
+    // Update .gitignore - Always ensure .docsgrep is ignored in the project
+    try {
+      const gitignorePath = path.join(projectPath, ".gitignore");
+      let gitignoreContent = "";
       try {
-        const gitignorePath = path.join(projectPath, ".gitignore");
-        let gitignoreContent = "";
-        try {
-          gitignoreContent = await fs.readFile(gitignorePath, "utf-8");
-        } catch (e) {
-          // .gitignore doesn't exist
-        }
-        if (!gitignoreContent.includes(".docsgrep")) {
-          await fs.writeFile(
-            gitignorePath,
-            gitignoreContent + "\n# docsgrep workspace\n.docsgrep/\n"
-          );
-        }
+        gitignoreContent = await fs.readFile(gitignorePath, "utf-8");
       } catch (e) {
-        // Ignore
+        // .gitignore doesn't exist
       }
+      if (!gitignoreContent.includes(".docsgrep/")) {
+        const padding = gitignoreContent && !gitignoreContent.endsWith("\n") ? "\n" : "";
+        await fs.writeFile(
+          gitignorePath,
+          gitignoreContent + `${padding}\n# docsgrep workspace and cache\n.docsgrep/\n`
+        );
+      }
+    } catch (e) {
+      // Ignore errors updating .gitignore
     }
 
     return {
@@ -131,13 +130,21 @@ export async function handlePurgeCache(
       "repos"
     );
 
+    // Check new persistent path first
+    const newReposDir = path.join(localProjectPath, ".docsgrep", "cache", "repos");
     // Check old path for backward compatibility
     const oldReposDir = path.join(localProjectPath, ".docsgrep", "repos");
+    
     try {
-      await fs.access(oldReposDir);
-      reposDir = oldReposDir;
+      await fs.access(newReposDir);
+      reposDir = newReposDir;
     } catch (e) {
-      // Use new path
+      try {
+        await fs.access(oldReposDir);
+        reposDir = oldReposDir;
+      } catch (e2) {
+        // Use system temp as default if project folders don't exist
+      }
     }
 
     const maxAgeMs =

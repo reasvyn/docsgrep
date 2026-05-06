@@ -60,11 +60,12 @@ describe('git utils', () => {
   });
 
   describe('getRepoCachePath', () => {
-    it('should return a path in system temp by default', () => {
+    it('should return a path in user home by default', () => {
       const repoUrl = 'https://github.com/user/repo.git';
       const cachePath = getRepoCachePath(repoUrl);
       
-      expect(cachePath).toContain(os.tmpdir());
+      expect(cachePath).toContain(os.homedir());
+      expect(cachePath).toContain('.docsgrep');
       expect(cachePath).toContain('repo');
     });
 

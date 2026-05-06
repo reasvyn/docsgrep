@@ -120,11 +120,14 @@ export function getRepoCachePath(
   } = {}
 ): string {
   const { branch, tag, localProjectPath } = options;
-  let baseReposDir = path.join(os.tmpdir(), "docsgrep", "repos");
+  
+  // Use user home directory for persistence instead of system tmp
+  const homeDir = os.homedir();
+  let baseReposDir = path.join(homeDir, ".docsgrep", "repos");
   
   if (localProjectPath) {
-    const validatedLocalPath = localProjectPath;
-    baseReposDir = path.join(os.tmpdir(), "docsgrep", path.basename(validatedLocalPath), "repos");
+    // If inside a project base camp, use project-specific cache
+    baseReposDir = path.join(localProjectPath, ".docsgrep", "cache", "repos");
   }
   
   const version = tag || branch;
