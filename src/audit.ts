@@ -1,46 +1,31 @@
 // Universal audit orchestrator - language agnostic
-import * as fs from 'node:fs/promises';
-import * as path from 'node:path';
-import { glob } from 'glob';
-import { getIgnorePatterns } from './utils/file.js';
 import { 
   performUniversalAudit, 
-  generateUniversalAuditPrompt,
   type AuditReport,
   type CodeIssue 
 } from './best-practices.js';
+import { generateUniversalAuditPrompt } from './utils/audit/prompts.js';
+import { getIgnorePatterns } from './utils/file.js';
+import { glob } from 'glob';
+import * as path from 'node:path';
 
 export { performUniversalAudit, generateUniversalAuditPrompt, type AuditReport, type CodeIssue };
 
 // Helper to get prompt (re-export)
 export async function getAuditPrompt(dirPath: string): Promise<string> {
   const ignorePatterns = await getIgnorePatterns(dirPath);
-  // Analyze structure for the prompt - use system temp, not .docsgrep
   const structure = await analyzeProjectStructure(dirPath, ignorePatterns);
-  return generateUniversalAuditPrompt(dirPath, {
-    hasDocumentation: structure.hasDocumentation,
-    hasLinterConfig: structure.hasLinterConfig,
-    hasTests: structure.hasTests,
-    hasCI: structure.hasCI,
-    directories: structure.directories,
-    entryPoints: [],
-  });
+  return generateUniversalAuditPrompt(dirPath, structure);
 }
 
-// No longer need .docsgrep workspace functions
-
-// Re-analyze structure for prompt (lightweight)
 async function analyzeProjectStructure(dirPath: string, ignorePatterns: string[]) {
   const directories = (await glob('*/', { cwd: dirPath, ignore: ignorePatterns }))
     .map(d => d.replace(/\/$/, ''));
 
-  const hasDocumentation = await fileExists(dirPath, ['README*', 'docs/**/*.md', 'DOCUMENTATION*'], ignorePatterns);
-  const hasLinterConfig = await fileExists(dirPath, [
-    '.eslintrc*', '.prettierrc*', 'tsconfig.json', '.editorconfig',
-    '.rubocop.yml', '.flake8', 'phpcs.xml', 'rustfmt.toml', '.pylintrc'
-  ], ignorePatterns);
-  const hasTests = await fileExists(dirPath, ['test/**', 'tests/**', 'spec/**', '__tests__/**'], ignorePatterns);
-  const hasCI = await fileExists(dirPath, ['.github/workflows/**', '.gitlab-ci.yml', 'Jenkinsfile'], ignorePatterns);
+  const hasDocumentation = await fileExists(dirPath, ['README*', 'docs/**/*.md'], ignorePatterns);
+  const hasLinterConfig = await fileExists(dirPath, ['.eslintrc*', 'tsconfig.json'], ignorePatterns);
+  const hasTests = await fileExists(dirPath, ['tests/**', 'test/**'], ignorePatterns);
+  const hasCI = await fileExists(dirPath, ['.github/**'], ignorePatterns);
 
   return { hasDocumentation, hasLinterConfig, hasTests, hasCI, directories };
 }

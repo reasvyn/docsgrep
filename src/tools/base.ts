@@ -2,6 +2,7 @@ import { McpToolResponse } from "../types/tools.js";
 import { logger } from "../utils/logger.js";
 import { operationLimiter } from "../utils/semaphore.js";
 import { getIgnorePatterns } from "../utils/file.js";
+import { validateDirPath, validateStringParam } from "../utils/validation.js";
 import { glob } from "glob";
 
 /**
@@ -42,6 +43,15 @@ export abstract class BaseTool<T> {
    * The actual implementation logic to be defined by subclasses
    */
   protected abstract run(args: T): Promise<McpToolResponse>;
+
+  /**
+   * Extract standard path and include filters from args
+   */
+  protected getStandardArgs(args: any): { dir: string, inc?: string[] } {
+    const dir = validateDirPath(validateStringParam(args.dirPath, "dirPath"));
+    const inc = args.includePath || args.filePatterns;
+    return { dir, inc };
+  }
 
   /**
    * Common helper to resolve ignore patterns

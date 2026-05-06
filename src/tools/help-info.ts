@@ -234,9 +234,9 @@ export async function handleSniffStyle(
 
     // 2. Implicit Pattern Analysis (Sampling)
     const sourceFiles = await FileScanner.findFiles({ dirPath, excludePath }, [
-      "src/**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift}",
-      "app/**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift}",
-      "lib/**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift}",
+      "src/**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift,dart,kt,scala,groovy,ex,erl,clj}",
+      "app/**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift,dart,kt,scala,groovy,ex,erl,clj}",
+      "lib/**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift,dart,kt,scala,groovy,ex,erl,clj}",
     ]);
 
     // Sample up to 3 files
