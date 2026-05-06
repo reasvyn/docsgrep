@@ -5,3 +5,6 @@ build
 coverage
 .gemini/
 opencode.json
+
+# docsgrep workspace and cache
+.docsgrep/
