@@ -14,6 +14,10 @@ export class CliFormatter {
       if (data.summary && (data.issues || data.owaspTop10 || data.categories)) {
         return this.formatAuditReport(data, toolName);
       }
+
+      if (data.zones && data.suggestions) {
+        return this.formatArchetypeReport(data);
+      }
       
       if (data.results && Array.isArray(data.results)) {
         return this.formatSearchResults(data, toolName);
@@ -109,5 +113,38 @@ export class CliFormatter {
     if (score >= 90) return `🟢 ${score}`;
     if (score >= 70) return `🟡 ${score}`;
     return `🔴 ${score}`;
+  }
+
+  private static formatArchetypeReport(data: any): string {
+    let out = `\n${"=".repeat(60)}\n`;
+    out += `🏛️  ARCHITECTURAL PATTERN MAP\n`;
+    out += `${"=".repeat(60)}\n\n`;
+
+    // Zones Section
+    out += `📍 ARCHITECTURE ZONES:\n`;
+    for (const [name, zone] of Object.entries(data.zones) as any) {
+      out += `  • ${name || './'}\n`;
+      out += `    Pattern:  ${zone.primaryPattern}\n`;
+      out += `    Elements: ${zone.components} files\n`;
+      out += `\n`;
+    }
+
+    // Suggestions
+    if (data.suggestions && data.suggestions.length > 0) {
+      out += `🧬 REFACTORING OPPORTUNITIES:\n`;
+      data.suggestions.forEach((adv: any, i: number) => {
+        out += `  ${i + 1}. ✨ ${adv.title}\n`;
+        out += `     Pattern: ${adv.pattern}\n`;
+        out += `     Match:   ${Math.round(adv.similarity * 100)}%\n`;
+        out += `     Files:   ${adv.components.join(', ')}\n`;
+        out += `     👉 ${adv.recommendation}\n`;
+        out += `     💡 ${adv.benefit}\n\n`;
+      });
+    } else {
+      out += `✅ Your architecture looks lean and consistent!\n`;
+    }
+
+    out += `${"=".repeat(60)}\n`;
+    return out;
   }
 }

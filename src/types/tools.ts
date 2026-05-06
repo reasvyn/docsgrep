@@ -170,3 +170,41 @@ export interface GaugeDocsArgs {
   includePath?: string[];
   excludePath?: string[];
 }
+
+export interface MapArchetypesArgs {
+  dirPath: string;
+  minSimilarity?: number;
+  focus?: 'interface' | 'base_class' | 'trait' | 'all';
+  excludePath?: string[];
+}
+
+export type ComponentRole = 'ENTRY_POINT' | 'LOGIC_HOLDER' | 'DATA_ACCESS' | 'CONTRACT' | 'DTO' | 'UTILITY' | 'DOMAIN_MODEL' | 'EVENT_HANDLER' | 'FACTORY' | 'UNKNOWN';
+
+export interface ArchetypeComponent {
+  file: string;
+  name: string;
+  role: ComponentRole;
+  suffix: string;
+  methods: Array<{ name: string, paramCount: number }>;
+  complexity: number;
+  dependencies: string[];
+}
+
+export interface ArchetypeAdvice {
+  title: string;
+  pattern: string;
+  components: string[];
+  similarity: number;
+  recommendation: string;
+  benefit: string;
+}
+
+export interface ArchetypeReport {
+  message: string;
+  zones: Record<string, {
+    primaryPattern: string;
+    components: number;
+    roles: Record<string, number>;
+  }>;
+  suggestions: ArchetypeAdvice[];
+}

@@ -1,23 +1,19 @@
 /**
- * Help & info tools: doc_the_tools, spy_stack, sniff_style, fetch_repo
+ * Help information for all docsgrep tools
  */
-import { glob } from "glob";
-import { getIgnorePatterns } from "../utils/file.js";
-import * as fs from "node:fs/promises";
-import * as path from "node:path";
-import { validateStringParam, validateDirPath } from "../utils/validation.js";
-import { operationLimiter } from "../utils/semaphore.js";
-import { analyzeProjectStyle } from "../project-style.js";
-import { cloneOrUpdateRepo, getRepoCachePath } from "../utils/git.js";
-import { logger } from "../utils/logger.js";
-import { findDocsInDir as findDocsInDirUtil } from "../tools/documentation.js";
-import {
-  type McpToolResponse,
+import { AppInfo } from "../utils/app-info.js";
+import { 
+  type McpToolResponse, 
   type DocTheToolsArgs,
   type SpyStackArgs,
   type SniffStyleArgs,
-  type FetchRepoArgs,
+  type FetchRepoArgs
 } from "../types/tools.js";
+import { validateDirPath, validateStringParam } from "../utils/validation.js";
+import * as path from "node:path";
+import * as fs from "node:fs/promises";
+import { operationLimiter } from "../utils/semaphore.js";
+import { FileScanner } from "./base.js";
 
 export async function handleDocTheTools(
   args: DocTheToolsArgs
@@ -101,6 +97,10 @@ export async function handleDocTheTools(
       description: "Measure documentation coverage (docblocks) in code",
       example: `gauge_docs(dirPath: "/home/user/myproject", publicOnly: true)`,
     },
+    map_archetypes: {
+      description: "Maps project architectural patterns and suggests refactorings (Base Class, Trait, Interface).",
+      example: `map_archetypes(dirPath: "/home/user/myproject", minSimilarity: 0.8)`,
+    }
   };
 
   if (toolName) {
@@ -117,70 +117,75 @@ export async function handleDocTheTools(
       };
     }
 
-    const result = { tool: toolName, ...help };
-    if (includeExamples === false) {
-      delete (result as any).example;
+    let text = `# Tool: ${toolName}\n\n${help.description}\n\n`;
+    if (includeExamples !== false) {
+      text += `## Example\n\`\`\`javascript\n${help.example}\n\`\`\`\n`;
     }
 
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(result, null, 2),
-        },
-      ],
-    };
+    return { content: [{ type: "text", text }] };
   }
 
-  const finalTools = { ...toolHelp };
-  if (includeExamples === false) {
-    Object.keys(finalTools).forEach((key) => {
-      delete (finalTools[key] as any).example;
-    });
+  // General help
+  let helpText = `# docsgrep Tool Suite (v${AppInfo.version})\n\n`;
+  helpText += `${AppInfo.description}\n\n`;
+  helpText += `## Available Tools\n\n`;
+
+  for (const [name, info] of Object.entries(toolHelp)) {
+    helpText += `### \`${name}\`\n${info.description}\n`;
+    if (includeExamples !== false) {
+      helpText += `Example: \`${info.example}\`\n`;
+    }
+    helpText += `\n`;
   }
 
-  return {
-    content: [
-      {
-        type: "text",
-        text: JSON.stringify(
-          {
-            message: `Help for all ${
-              Object.keys(finalTools).length
-            } docsgrep tools.`,
-            tools: finalTools,
-          },
-          null,
-          2
-        ),
-      },
-    ],
-  };
+  return { content: [{ type: "text", text: helpText }] };
 }
 
 export async function handleSpyStack(
   args: SpyStackArgs
 ): Promise<McpToolResponse> {
-  const { dirPath: rawPath } = args;
+  const { dirPath: rawPath, excludePath } = args;
 
   try {
     const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-    const stat = await fs.stat(dirPath);
-    if (!stat.isDirectory()) {
-      throw new Error("Provided path is not a directory");
+
+    // Find package manager files
+    const packageFiles = await FileScanner.findFiles({ dirPath, excludePath }, [
+      "package.json",
+      "composer.json",
+      "go.mod",
+      "Cargo.toml",
+      "requirements.txt",
+      "Gemfile",
+      "build.gradle",
+      "pom.xml",
+      "package-lock.json",
+      "yarn.lock",
+      "pnpm-lock.yaml",
+      "composer.lock",
+      "Cargo.lock",
+    ]);
+
+    const files: Record<string, string> = {};
+    for (const file of packageFiles) {
+      try {
+        const fullPath = path.join(dirPath, file);
+        const content = await fs.readFile(fullPath, "utf-8");
+        // Only take the first 100 lines for each file to avoid huge output
+        files[file] = content.split("\n").slice(0, 100).join("\n");
+      } catch (e) {
+        // Skip
+      }
     }
 
-    const analysis = await analyzeProjectContext(dirPath);
     return {
       content: [
         {
           type: "text",
           text: JSON.stringify(
             {
-              message: `Found ${
-                Object.keys(analysis).length
-              } package manager files in local directory.`,
-              files: analysis,
+              message: `Found ${packageFiles.length} package manager files in local directory.`,
+              files,
             },
             null,
             2
@@ -190,12 +195,7 @@ export async function handleSpyStack(
     };
   } catch (error: any) {
     return {
-      content: [
-        {
-          type: "text",
-          text: `Error analyzing tech stack: ${error.message}`,
-        },
-      ],
+      content: [{ type: "text", text: `Error spying on stack: ${error.message}` }],
       isError: true,
     };
   }
@@ -204,25 +204,131 @@ export async function handleSpyStack(
 export async function handleSniffStyle(
   args: SniffStyleArgs
 ): Promise<McpToolResponse> {
-  const { dirPath: rawPath } = args;
+  const { dirPath: rawPath, excludePath } = args;
 
   try {
     const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-    const stat = await fs.stat(dirPath);
-    if (!stat.isDirectory()) {
-      throw new Error("Provided path is not a directory");
+
+    // 1. Explicit Conventions
+    const conventionFiles = await FileScanner.findFiles({ dirPath, excludePath }, [
+      ".eslintrc*",
+      ".prettierrc*",
+      "tsconfig.json",
+      ".editorconfig",
+      "CONTRIBUTING*",
+      "ARCHITECTURE*",
+      "STYLEGUIDE*",
+      "docs/tools/sniff_style.md", // include doc as convention reference if exists
+    ]);
+
+    const conventions: Record<string, string> = {};
+    for (const file of conventionFiles) {
+      try {
+        const fullPath = path.join(dirPath, file);
+        const content = await fs.readFile(fullPath, "utf-8");
+        conventions[file] = content.split("\n").slice(0, 100).join("\n");
+      } catch (e) {
+        // Skip
+      }
     }
 
+    // 2. Implicit Pattern Analysis (Sampling)
+    const sourceFiles = await FileScanner.findFiles({ dirPath, excludePath }, [
+      "src/**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift}",
+      "app/**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift}",
+      "lib/**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift}",
+    ]);
+
+    // Sample up to 3 files
+    const sampledFiles = sourceFiles.sort(() => 0.5 - Math.random()).slice(0, 3);
+    const patterns: Record<string, any> = {};
+
+    for (const file of sampledFiles) {
+      try {
+        const fullPath = path.join(dirPath, file);
+        const content = await fs.readFile(fullPath, "utf-8");
+        patterns[file] = content.split("\n").slice(0, 100).join("\n");
+      } catch (e) {
+        // Skip
+      }
+    }
+
+    // Heuristic analysis
+    const allSampleContent = Object.values(patterns).join("\n");
+    const detected = {
+      namingStyle: /_/.test(allSampleContent) ? "snake_case" : "camelCase",
+      indentation: /\t/.test(allSampleContent) ? "tabs" : "spaces",
+      quoteStyle: /'/.test(allSampleContent) ? "single" : "double",
+      lineLengthAvg: Math.round(allSampleContent.length / (allSampleContent.split("\n").length || 1)),
+      hasComments: /\/\/|#|\/\*/.test(allSampleContent),
+      commentStyle: /\/\*/.test(allSampleContent) ? "multi-line" : "single-line",
+    };
+
+    const recommendations = [];
+    if (conventionFiles.length > 0) {
+      recommendations.push("Project has explicit conventions/linter config - good for maintainability!");
+    } else {
+      recommendations.push("No explicit linter/style config found. Consider adding .eslintrc or .editorconfig.");
+    }
+    recommendations.push(`Detected naming style: ${detected.namingStyle}. Ensure consistency across the codebase.`);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(
+            {
+              message: `Project style analysis completed. Found ${conventionFiles.length} convention/linter files in local directory. Sampled ${sampledFiles.length} source files to infer codebase patterns.`,
+              conventions: {
+                found: conventionFiles.length > 0,
+                files: conventions,
+                message: `Found ${conventionFiles.length} convention/linter files in local directory.`,
+              },
+              patterns: {
+                sampled: sampledFiles.length,
+                files: patterns,
+                detected,
+                message: `Sampled ${sampledFiles.length} source files to infer codebase patterns.`,
+              },
+              recommendations,
+            },
+            null,
+            2
+          ),
+        },
+      ],
+    };
+  } catch (error: any) {
+    return {
+      content: [{ type: "text", text: `Error sniffing style: ${error.message}` }],
+      isError: true,
+    };
+  }
+}
+
+export async function handleFetchRepo(
+  args: FetchRepoArgs
+): Promise<McpToolResponse> {
+  const { repoUrl, branch, tag, authToken, sshKeyPath, localProjectPath } = args;
+
+  try {
+    const url = validateStringParam(repoUrl, "repoUrl");
     const release = await operationLimiter.acquire();
+    
     try {
-      logger.info("Starting project style analysis", { dirPath });
+      const { cloneOrUpdateRepo, getRepoCachePath } = await import("../utils/git.js");
+      const targetDir = getRepoCachePath(url, { branch, tag, localProjectPath });
+      
+      await cloneOrUpdateRepo(url, targetDir, { branch, tag, authToken, sshKeyPath });
 
-      const report = await analyzeProjectStyle(dirPath);
-
-      logger.info("Project style analysis completed", {
-        conventionsFound: report.conventions.found,
-        patternsSampled: report.patterns.sampled,
-      });
+      const files = await FileScanner.findFiles({ dirPath: targetDir }, [
+        "README*",
+        "docs/**/*.md",
+        "DOCUMENTATION*",
+        "CONTRIBUTING*",
+        "CODE_OF_CONDUCT*",
+        "GEMINI.md",
+      ]);
 
       return {
         content: [
@@ -230,10 +336,9 @@ export async function handleSniffStyle(
             type: "text",
             text: JSON.stringify(
               {
-                message: `Project style analysis completed. ${report.conventions.message} ${report.patterns.message}`,
-                conventions: report.conventions,
-                patterns: report.patterns,
-                recommendations: report.recommendations,
+                message: `Successfully cloned/fetched and explored repository. Found ${files.length} files.`,
+                tempDirectory: targetDir,
+                files: files.map((f: string) => path.join(targetDir, f)),
               },
               null,
               2
@@ -246,156 +351,8 @@ export async function handleSniffStyle(
     }
   } catch (error: any) {
     return {
-      content: [
-        {
-          type: "text",
-          text: `Error analyzing project style: ${error.message}`,
-        },
-      ],
+      content: [{ type: "text", text: `Error fetching repo: ${error.message}` }],
       isError: true,
     };
   }
-}
-
-export async function handleFetchRepo(
-  args: FetchRepoArgs
-): Promise<McpToolResponse> {
-  const { repoUrl, branch, tag, localProjectPath, authToken, sshKeyPath } = args;
-
-  try {
-    // Validate repoUrl
-    const validatedUrl = validateStringParam(repoUrl, "repoUrl");
-    try {
-      new URL(validatedUrl);
-    } catch (e) {
-      throw new Error("Invalid repoUrl: not a valid URL");
-    }
-    if (!/^(https?|git|ssh):\/\//.test(validatedUrl)) {
-      throw new Error(
-        "Invalid repoUrl: must use http, https, git, or ssh protocol"
-      );
-    }
-
-    const targetDir = getRepoCachePath(validatedUrl, { branch, tag, localProjectPath });
-
-    // Ensure cache directory exists
-    await fs.mkdir(path.dirname(targetDir), { recursive: true });
-
-    await cloneOrUpdateRepo(validatedUrl, targetDir, {
-      branch,
-      tag,
-      authToken,
-      sshKeyPath,
-    });
-
-    // Find docs in the cloned repo
-    const docs = await findDocsInDirUtil(targetDir);
-
-    return {
-      content: [
-        {
-          type: "text",
-          text: JSON.stringify(
-            {
-              message: `Successfully cloned/fetched and explored repository. Found ${docs.length} files.`,
-              tempDirectory: targetDir,
-              files: docs,
-            },
-            null,
-            2
-          ),
-        },
-      ],
-    };
-  } catch (error: any) {
-    return {
-      content: [
-        {
-          type: "text",
-          text: `Error cloning or exploring remote repo: ${error.message}`,
-        },
-      ],
-      isError: true,
-    };
-  }
-}
-
-// Helper function to analyze project context (language-agnostic)
-async function analyzeProjectContext(dirPath: string): Promise<Record<string, string>> {
-  const commonFiles = [
-    // Node.js
-    "package.json",
-    "yarn.lock",
-    "pnpm-lock.yaml",
-    "bun.lockb",
-    // PHP
-    "composer.json",
-    "composer.lock",
-    // Go
-    "go.mod",
-    "go.sum",
-    // Rust
-    "Cargo.toml",
-    "Cargo.lock",
-    // Python
-    "requirements.txt",
-    "pyproject.toml",
-    "Pipfile",
-    "Pipfile.lock",
-    "setup.py",
-    // Ruby
-    "Gemfile",
-    "Gemfile.lock",
-    // Java / Kotlin / Scala
-    "pom.xml",
-    "build.gradle",
-    "build.gradle.kts",
-    "settings.gradle",
-    // C / C++
-    "CMakeLists.txt",
-    "Makefile",
-    "conanfile.txt",
-    "conanfile.py",
-    // .NET / C#
-    "*.csproj",
-    "*.fsproj",
-    "packages.config",
-    // Elixir / Erlang
-    "mix.exs",
-    "mix.lock",
-    // Dart
-    "pubspec.yaml",
-    "pubspec.lock",
-    // Additional
-    "Package.swift",
-    "shard.yml",
-    "rebar.config",
-  ];
-
-  const allPatterns = commonFiles;
-  const ignorePatterns = await getIgnorePatterns(dirPath);
-  const foundFiles = await glob(allPatterns, {
-    cwd: dirPath,
-    nocase: true,
-    ignore: ignorePatterns,
-  });
-
-  const analysis: Record<string, string> = {};
-
-  for (const file of foundFiles) {
-    const fullPath = path.join(dirPath, file);
-    try {
-      const stat = await fs.stat(fullPath);
-      if (stat.isFile() && stat.size < 50000) {
-        const content = await fs.readFile(fullPath, "utf-8");
-        analysis[file] = content;
-      } else {
-        analysis[file] = `[File too large or not a file: ${stat.size} bytes]`;
-      }
-    } catch (e: any) {
-      analysis[file] = `[Error reading file: ${e.message}]`;
-    }
-  }
-
-  return analysis;
 }

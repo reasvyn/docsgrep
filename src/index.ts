@@ -54,6 +54,7 @@ import {
   handleSniffStyle,
   handleFetchRepo,
 } from "./tools/help-info.js";
+import { handleMapArchetypesTool } from "./tools/archetypes.js";
 
 // Existing tool imports
 import { performUniversalAudit as performAudit, type AuditReport } from "./best-practices.js";
@@ -99,10 +100,9 @@ class LintCodeTool extends BaseTool<LintCodeArgs> {
           issues: report.issues || [],
           strengths: report.strengths || [],
           recommendations: report.recommendations || [],
-          capabilities: caps,
-          note: report.issues && report.issues.length >= 100 ? "Results limited to 100 issues." : undefined,
-        }, null, 2),
-      }],
+          capabilities: caps
+        }, null, 2)
+      }]
     };
   }
 }
@@ -112,6 +112,7 @@ class GuardSecurityTool extends BaseTool<GuardSecurityArgs> {
   protected async run(args: GuardSecurityArgs): Promise<McpToolResponse> {
     const dirPath = validateDirPath(validateStringParam(args.dirPath, "dirPath"));
     const caps = await checkCapabilities();
+    // Support legacy filePatterns
     const includePath = args.includePath || args.filePatterns;
     const report: SecurityAuditReport = await performSecurityAudit(dirPath, includePath, args.excludePath);
     const gapMessages = getCapabilityGapMessage(caps);
@@ -128,26 +129,18 @@ class GuardSecurityTool extends BaseTool<GuardSecurityArgs> {
           privacyIssues: report.privacyIssues,
           complianceStatus: report.complianceStatus,
           recommendations: report.recommendations,
-          capabilities: caps,
-          note: report.secretsFound.length >= 50 ? "Secrets list limited to 50 items." : undefined,
-        }, null, 2),
-      }],
+          capabilities: caps
+        }, null, 2)
+      }]
     };
   }
-}
-
-async function handleLintCodeTool(args: LintCodeArgs): Promise<McpToolResponse> {
-  return new LintCodeTool().execute(args);
-}
-
-async function handleGuardSecurityTool(args: GuardSecurityArgs): Promise<McpToolResponse> {
-  return new GuardSecurityTool().execute(args);
 }
 
 class CatchBugsTool extends BaseTool<CatchBugsArgs> {
   protected name = "catch_bugs";
   protected async run(args: CatchBugsArgs): Promise<McpToolResponse> {
     const dirPath = validateDirPath(validateStringParam(args.dirPath, "dirPath"));
+    // Support legacy filePatterns
     const includePath = args.includePath || args.filePatterns;
     const report: BugReport = await catchBugs(dirPath, includePath, args.excludePath);
     return {
@@ -157,53 +150,37 @@ class CatchBugsTool extends BaseTool<CatchBugsArgs> {
           message: `Bug analysis completed: ${report.summary.totalIssues} issues found. Bug Score: ${report.summary.bugScore}/100`,
           summary: report.summary,
           categories: report.categories,
-          recommendations: report.recommendations,
-        }, null, 2),
-      }],
+          recommendations: report.recommendations
+        }, null, 2)
+      }]
     };
   }
 }
 
-async function handleCatchBugsTool(args: CatchBugsArgs): Promise<McpToolResponse> {
-  return new CatchBugsTool().execute(args);
+// Wrapper handlers for modularized tools
+async function handleLintCodeTool(args: any) { return await new LintCodeTool().execute(args); }
+async function handleGuardSecurityTool(args: any) { return await new GuardSecurityTool().execute(args); }
+async function handleCatchBugsTool(args: any) { return await new CatchBugsTool().execute(args); }
+
+async function handleAskLintTool(args: any): Promise<McpToolResponse> {
+  const dirPath = validateDirPath(validateStringParam(args.dirPath, "dirPath"));
+  const prompt = await getAuditPrompt(dirPath);
+  return { content: [{ type: "text", text: prompt }] };
 }
 
-async function handleAskLintTool(args: AskLintArgs): Promise<McpToolResponse> {
-  const { dirPath: rawPath } = args;
-  try {
-    const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-    const prompt = await getAuditPrompt(dirPath);
-    return { content: [{ type: "text", text: prompt }] };
-  } catch (error: any) {
-    return {
-      content: [{ type: "text", text: `Error generating audit prompt: ${error.message}` }],
-      isError: true,
-    };
-  }
+async function handleAskGuardTool(args: any): Promise<McpToolResponse> {
+  const dirPath = validateDirPath(validateStringParam(args.dirPath, "dirPath"));
+  const prompt = await generateSecurityAuditPrompt(dirPath);
+  return { content: [{ type: "text", text: prompt }] };
 }
 
-async function handleAskGuardTool(args: AskGuardArgs): Promise<McpToolResponse> {
-  const { dirPath: rawPath } = args;
-  try {
-    const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
-    const prompt = generateSecurityAuditPrompt(dirPath);
-    return { content: [{ type: "text", text: prompt }] };
-  } catch (error: any) {
-    return {
-      content: [{ type: "text", text: `Error generating security audit prompt: ${error.message}` }],
-      isError: true,
-    };
-  }
-}
-
-// Define the tools
+// Register all tools
 server.setRequestHandler(ListToolsRequestSchema, async () => {
   return {
     tools: [
       {
         name: "setup_camp",
-        description:
-          "Sets up a docsgrep base camp in the specified project directory to store temporary files, logs, and reports. Also automatically updates the .gitignore file.",
+        description: "Sets up a docsgrep base camp in the specified project directory to store temporary files, logs, and reports. Also automatically updates the .gitignore file.",
         inputSchema: {
           type: "object",
           properties: {
@@ -217,8 +194,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "spy_stack",
-        description:
-          "Spies on the project's technology stack by reading package manager files (e.g., package.json, composer.json, go.mod, Cargo.toml).",
+        description: "Spies on the project's technology stack by reading package manager files (e.g., package.json, composer.json, go.mod, Cargo.toml).",
         inputSchema: {
           type: "object",
           properties: {
@@ -237,8 +213,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "sniff_style",
-        description:
-          "Sniffs out project style: conventions, linters, and infers implicit coding patterns from codebase samples. Combines convention detection and code pattern analysis.",
+        description: "Sniffs out project style: conventions, linters, and infers implicit coding patterns from codebase samples. Combines convention detection and code pattern analysis.",
         inputSchema: {
           type: "object",
           properties: {
@@ -257,8 +232,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "hunt_docs",
-        description:
-          "Hunts for README files and documentation inside docs/ folders in a local directory.",
+        description: "Hunts for README files and documentation inside docs/ folders in a local directory.",
         inputSchema: {
           type: "object",
           properties: {
@@ -282,8 +256,7 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
       {
         name: "fetch_repo",
-        description:
-          "Fetches a remote git repository to a temporary directory and finds documentation. Supports authentication for private repos.",
+        description: "Fetches a remote git repository to a temporary directory and finds documentation. Supports authentication for private repos.",
         inputSchema: {
           type: "object",
           properties: {
@@ -299,10 +272,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "string",
               description: "Optional. Specific tag or version to explore (e.g., 'v1.0.0'). Overrides branch if both are provided.",
             },
-            localProjectPath: {
-              type: "string",
-              description: "Optional. The absolute path to the local project to use its .docsgrep workspace for storing cloned repositories.",
-            },
             authToken: {
               type: "string",
               description: "Optional. Authentication token for private repositories (GitHub PAT, GitLab token, etc.). For HTTPS URLs, this will be added to the URL.",
@@ -310,7 +279,11 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
             sshKeyPath: {
               type: "string",
               description: "Optional. Path to SSH private key for authentication. Uses ssh-agent or GIT_SSH_COMMAND.",
-            }
+            },
+            localProjectPath: {
+              type: "string",
+              description: "Optional. The absolute path to the local project to use its .docsgrep workspace for storing cloned repositories.",
+            },
           },
           required: ["repoUrl"],
         },
@@ -503,7 +476,6 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
           required: ["dirPath"],
         },
       },
-      // New tools
       {
         name: "fathom_meaning",
         description: "Searches documentation based on meaning (semantic search), not just keyword matching. Understands natural language queries and finds relevant docs.",
@@ -735,6 +707,44 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               type: "boolean",
               description: "Optional. Only count public APIs (exported/public). Defaults to true.",
             },
+            includePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to include in scanning.",
+            },
+            excludePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional. Glob patterns to exclude from scanning.",
+            },
+          },
+          required: ["dirPath"],
+        },
+      },
+      {
+        name: "map_archetypes",
+        description: "Maps project architectural patterns (MVC, Repository, etc.) and suggests refactoring candidates (Base Class, Trait, Interface).",
+        inputSchema: {
+          type: "object",
+          properties: {
+            dirPath: {
+              type: "string",
+              description: "The absolute path to the project directory.",
+            },
+            minSimilarity: {
+              type: "number",
+              description: "Minimum similarity score (0-1) to suggest abstraction. Default: 0.8",
+            },
+            focus: {
+              type: "string",
+              enum: ["interface", "base_class", "trait", "all"],
+              description: "Optional focus area for suggestions.",
+            },
+            excludePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional glob patterns to exclude from scanning.",
+            },
           },
           required: ["dirPath"],
         },
@@ -796,6 +806,8 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         return await handleCatchFossils(args as any);
       case "gauge_docs":
         return await handleGaugeDocs(args as any);
+      case "map_archetypes":
+        return await handleMapArchetypesTool(args as any);
       default:
         throw new McpError(
           ErrorCode.MethodNotFound,
@@ -804,7 +816,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     }
   } catch (error: any) {
     return {
-      content: [{ type: "text", text: `Error: ${error.message}` }],
+      content: [
+        {
+          type: "text",
+          text: `Error: ${error.message}`,
+        },
+      ],
       isError: true,
     } as any;
   }
@@ -834,7 +851,7 @@ async function runCli(cliArgs: string[]) {
     "lint_code", "guard_security", "catch_bugs", "gauge_docs", 
     "smell_stale", "sniff_style", "spy_stack", "hunt_docs", 
     "grep_docs", "fathom_meaning", "tldr_docs", "sync_docs", 
-    "verify_truth", "spot_delta", "catch_fossils"
+    "verify_truth", "spot_delta", "catch_fossils", "map_archetypes"
   ];
 
   if (!toolName || !availableTools.includes(toolName)) {
@@ -968,6 +985,8 @@ async function executeToolByName(name: string, args: any): Promise<McpToolRespon
       return await handleCatchFossils(args);
     case "gauge_docs":
       return await handleGaugeDocs(args);
+    case "map_archetypes":
+      return await handleMapArchetypesTool(args);
     default:
       throw new Error(`Unknown tool: ${name}`);
   }
