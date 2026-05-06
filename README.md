@@ -75,6 +75,11 @@ All scanning tools now support advanced filtering:
 - **`excludePath`**: Skip irrelevant noise, merged with your project's `.gitignore`.
 - **Recursive Globbing**: Full support for standard glob patterns.
 
+### 💻 Hybrid Mode (MCP + CLI)
+**docsgrep** is both an automated MCP server and a manual developer tool.
+- **Human-Readable Output**: Beautifully formatted terminal reports by default.
+- **Easy Integration**: Run audits directly via npm scripts or `npx`.
+
 ---
 
 ## 📦 Installation
@@ -91,6 +96,36 @@ Add **docsgrep** to your MCP client (e.g., Claude Desktop, Cursor):
   }
 }
 ```
+
+---
+
+## 💻 Manual CLI Mode
+
+Beyond MCP, you can run **docsgrep** manually in your terminal. This is perfect for local audits before committing code.
+
+### Usage
+```bash
+npx @anovise/docsgrep run <tool_name> [--param value]
+```
+
+### Examples
+```bash
+# Run a code quality audit on the current directory
+npx @anovise/docsgrep run lint_code
+
+# Run a security scan and output as JSON
+npx @anovise/docsgrep run guard_security --format json
+
+# Search for a pattern in documentation
+npx @anovise/docsgrep run grep_docs --pattern "authentication" --contextLines 2
+```
+
+### Pre-configured npm Scripts
+If installed locally, you can use these shortcuts:
+- `npm run lint`: Quality audit.
+- `npm run audit`: Security audit.
+- `npm run bugs`: Bug detection.
+- `npm run docs:check`: Documentation coverage.
 
 ---
 

@@ -2,6 +2,7 @@
 // These are language-agnostic patterns that indicate code quality issues
 
 import { getIgnorePatterns } from "./utils/file.js";
+import { CodeSanitizer } from "./utils/code-analysis.js";
 
 export interface CodeIssue {
   file: string;
@@ -122,8 +123,12 @@ class UniversalCodeAnalyzer {
   detectCodeSmells(content: string, filePath: string): CodeIssue[] {
     const issues: CodeIssue[] = [];
     const lines = content.split('\n');
-    const ext = filePath.split('.').pop()?.toLowerCase();
+    const ext = filePath.split('.').pop()?.toLowerCase() || 'ts';
     
+    // Create sanitized version for logic-based checks (ignore comments)
+    const sanitizedContent = CodeSanitizer.stripComments(content, ext);
+    const sanitizedLines = sanitizedContent.split('\n');
+
     // 1. File too long (generic: >400 lines is suspicious)
     if (lines.length > 400) {
       issues.push({
@@ -136,48 +141,61 @@ class UniversalCodeAnalyzer {
       });
     }
     
-    // 2. Function/Method too long (generic detection)
+    // 2. Function/Method too long and Parameter Count
     const funcPatterns = [
-      /\b(?:function|def|func|fn|sub|procedure)\s+\w+/g, // Most languages
-      /\b(?:public|private|protected|static|async)?\s*\w+\s+\w+\s*\([^)]*\)\s*{/g, // C-style
-      /\b(?:const|let|var)\s+\w+\s*=\s*(?:function|\([^)]*\)\s*=>)/g, // JS arrows
+      /\b(?:function|def|func|fn|sub|procedure)\s+(\w+)\s*\(([^)]*)\)/g, // Most languages
+      /\b(?:public|private|protected|static|async)?\s*\w+\s+(\w+)\s*\(([^)]*)\)\s*{/g, // C-style
+      /\b(?:const|let|var)\s+(\w+)\s*=\s*(?:function|\(([^)]*)\)\s*=>)/g, // JS arrows
     ];
     
-    let funcCount = 0;
-    for (const pattern of funcPatterns) {
-      const matches = content.match(pattern) || [];
-      funcCount += matches.length;
-    }
-    
     // Detect long functions by counting lines between braces (simplified)
-    const braceDepth: number[] = [];
     let currentDepth = 0;
     let funcStart = -1;
+    let currentFuncName = '';
     
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+    for (let i = 0; i < sanitizedLines.length; i++) {
+      const line = sanitizedLines[i];
+      if (CodeSanitizer.isIgnored(lines[i])) continue;
+
       const openBraces = (line.match(/\{/g) || []).length;
       const closeBraces = (line.match(/\}/g) || []).length;
       
-      if (openBraces > 0 && funcStart === -1) {
-        // Potential function start
-        if (/function|def|func|fn/.test(line)) {
+      // Try to catch function name and params
+      for (const pattern of funcPatterns) {
+        pattern.lastIndex = 0;
+        const match = pattern.exec(line);
+        if (match && funcStart === -1) {
           funcStart = i;
+          currentFuncName = match[1];
+          const params = match[2] || '';
+          const paramCount = params.split(',').filter(p => p.trim().length > 0).length;
+          
+          if (paramCount > 5) {
+            issues.push({
+              file: filePath,
+              line: i + 1,
+              severity: 'medium',
+              category: 'Maintainability',
+              title: 'Too Many Parameters',
+              description: `Function '${currentFuncName}' has ${paramCount} parameters.`,
+              suggestion: 'Consider using an object/struct to group parameters or splitting the function.',
+            });
+          }
         }
       }
       
       currentDepth += openBraces - closeBraces;
       
-      if (funcStart !== -1 && currentDepth === 0) {
+      if (funcStart !== -1 && currentDepth === 0 && (openBraces + closeBraces > 0)) {
         const funcLength = i - funcStart;
-        if (funcLength > 50) {
+        if (funcLength > 60) {
           issues.push({
             file: filePath,
             line: funcStart + 1,
             severity: 'medium',
             category: 'Maintainability',
             title: 'Long Function/Method',
-            description: `Function/method appears to be ${funcLength} lines long.`,
+            description: `Function '${currentFuncName}' appears to be ${funcLength} lines long.`,
             suggestion: 'Break down into smaller, more focused functions.',
           });
         }
@@ -187,7 +205,10 @@ class UniversalCodeAnalyzer {
     
      // 3. Deep nesting (universal)
      let maxNesting = 0;
-     for (const line of lines) {
+     for (let i = 0; i < sanitizedLines.length; i++) {
+       const line = sanitizedLines[i];
+       if (CodeSanitizer.isIgnored(lines[i])) continue;
+
        const indent = line.match(/^(\s*)/)?.[1] || '';
        const depth = indent.length / (indent.includes('\t') ? 1 : 2); // Assume 2 spaces
        if (depth > maxNesting) maxNesting = depth;
@@ -204,20 +225,79 @@ class UniversalCodeAnalyzer {
       });
     }
     
-    // 4. Line too long (universal)
-    const longLines = lines.filter(l => l.length > 120);
-    if (longLines.length > 5) {
-      issues.push({
+    // 4. Complexity & Complex Conditionals
+    let complexBlocks = 0;
+    for (let i = 0; i < sanitizedLines.length; i++) {
+      const line = sanitizedLines[i];
+      if (CodeSanitizer.isIgnored(lines[i])) continue;
+      
+      // Cyclomatic complexity indicators
+      const branchMatches = line.match(/\b(if|else if|case|for|while|catch|&&|\|\|)\b/g) || [];
+      if (branchMatches.length > 3) {
+        issues.push({
+          file: filePath,
+          line: i + 1,
+          severity: 'medium',
+          category: 'Complexity',
+          title: 'Complex Expression',
+          description: 'Line contains multiple logical branches or conditions.',
+          suggestion: 'Simplify the expression or break it into multiple lines/variables.',
+        });
+      }
+      
+      if (branchMatches.length > 0) complexBlocks += branchMatches.length;
+    }
+
+    if (complexBlocks > 40) {
+       issues.push({
         file: filePath,
-        severity: 'low',
-        category: 'Style',
-        title: 'Long Lines',
-        description: `Found ${longLines.length} lines over 120 characters.`,
-        suggestion: 'Break long lines for better readability. Consider configuring a linter.',
+        severity: 'medium',
+        category: 'Complexity',
+        title: 'High File Complexity',
+        description: `File has a high number of logical branches (${complexBlocks}).`,
+        suggestion: 'Refactor complex logic into smaller, testable functions.',
       });
     }
     
-    // 5. TODO/FIXME comments (technical debt)
+    // 5. Naming Smells (short names)
+    const shortNameRegex = /\b(const|let|var|def|func|fn)\s+([a-zA-Z0-9_$]{1})\b/g;
+    let nameMatch;
+    while ((nameMatch = shortNameRegex.exec(sanitizedContent)) !== null) {
+      const name = nameMatch[2];
+      if (!['i', 'j', 'k', 'x', 'y', 'z', 'e', 'v', '_'].includes(name.toLowerCase())) {
+        const lineNum = sanitizedContent.substring(0, nameMatch.index).split('\n').length;
+        if (CodeSanitizer.isIgnored(lines[lineNum - 1])) continue;
+
+        issues.push({
+          file: filePath,
+          line: lineNum,
+          severity: 'low',
+          category: 'Readability',
+          title: 'Cryptic Name',
+          description: `Variable name '${name}' is too short and non-descriptive.`,
+          suggestion: 'Use descriptive names that convey intent.',
+        });
+      }
+    }
+    
+    // 6. Magic numbers (universal)
+    const magicNumberRegex = /(?<![.\w'"$])\d{2,}(?![.\w])/g;
+    const magicNumbers = sanitizedContent.match(magicNumberRegex);
+    if (magicNumbers && magicNumbers.length > 5) {
+      const filtered = magicNumbers.filter(n => !['10', '100', '1000', '200', '400', '404', '500'].includes(n));
+      if (filtered.length > 3) {
+        issues.push({
+          file: filePath,
+          severity: 'low',
+          category: 'Code Quality',
+          title: 'Magic Numbers',
+          description: `Found ${filtered.length} magic numbers. Use named constants.`,
+          suggestion: 'Extract magic numbers to named constants with descriptive names.',
+        });
+      }
+    }
+    
+    // 7. TODO/FIXME comments (technical debt) - Uses ORIGINAL content
     const todoPattern = /\b(?:TODO|FIXME|HACK|XXX|BUG)\b/gi;
     const todos = content.match(todoPattern);
     if (todos && todos.length > 0) {
@@ -230,27 +310,9 @@ class UniversalCodeAnalyzer {
         suggestion: 'Address these items or create tracking tickets.',
       });
     }
-    
-    // 6. Magic numbers (universal)
-    const magicNumberRegex = /(?<![.\w'"$])\d{2,}(?![.\w])/g;
-    const magicNumbers = content.match(magicNumberRegex);
-    if (magicNumbers && magicNumbers.length > 3) {
-      // Filter out common safe numbers and scales
-      const filtered = magicNumbers.filter(n => !['10', '100', '1000'].includes(n));
-      if (filtered.length > 3) {
-        issues.push({
-          file: filePath,
-          severity: 'low',
-          category: 'Code Quality',
-          title: 'Magic Numbers',
-          description: `Found ${filtered.length} magic numbers (excluding common scales). Use named constants.`,
-          suggestion: 'Extract magic numbers to named constants with descriptive names.',
-        });
-      }
-    }
-    
-    // 7. Duplicate code detection (simple: repeated lines)
-    const nonEmptyLines = lines.map(l => l.trim()).filter(l => l.length > 20);
+
+    // 8. Duplicate code detection (simple: repeated lines)
+    const nonEmptyLines = sanitizedLines.map(l => l.trim()).filter(l => l.length > 25);
     const lineCount: Record<string, number> = {};
     for (const line of nonEmptyLines) {
       lineCount[line] = (lineCount[line] || 0) + 1;
@@ -267,17 +329,18 @@ class UniversalCodeAnalyzer {
       });
     }
     
-    // 8. Dead code indicators (unused variables/functions)
-    // Look for patterns like: variable declared but not used (simplified)
+    // 9. Dead code indicators (unused variables/functions)
     if (ext === 'js' || ext === 'ts' || ext === 'jsx' || ext === 'tsx') {
       const unusedPattern = /\b(?:const|let|var)\s+(\w+)\s*[=;]/g;
       let match;
-      while ((match = unusedPattern.exec(content)) !== null) {
+      while ((match = unusedPattern.exec(sanitizedContent)) !== null) {
         const varName = match[1];
         const usageRegex = new RegExp(`\\b${varName}\\b`, 'g');
-        const usages = content.match(usageRegex);
+        const usages = sanitizedContent.match(usageRegex);
         if (!usages || usages.length <= 1) {
-          const lineNum = content.substring(0, match.index).split('\n').length;
+          const lineNum = sanitizedContent.substring(0, match.index).split('\n').length;
+          if (CodeSanitizer.isIgnored(lines[lineNum - 1])) continue;
+
           issues.push({
             file: filePath,
             line: lineNum,
@@ -291,8 +354,9 @@ class UniversalCodeAnalyzer {
       }
     }
     
-    return issues.slice(0, 10); // Limit per file to avoid noise
+    return issues.slice(0, 15); // Limit per file
   }
+
 }
 
 // Main audit function
@@ -525,7 +589,11 @@ function generateUniversalRecommendations(
   }
   
   if (categories.includes('Readability')) {
-    recommendations.push('Improve code readability: reduce nesting, use descriptive names, add comments for complex logic.');
+    recommendations.push('Improve code readability: reduce nesting, use descriptive names (avoid single-letter variables except for counters), and add comments for complex logic.');
+  }
+  
+  if (categories.includes('Complexity')) {
+    recommendations.push('Reduce cyclomatic complexity by breaking down complex conditional logic and simplifying nested loops.');
   }
   
   return recommendations.length > 0 ? recommendations : ['Code quality looks good! Keep following best practices.'];

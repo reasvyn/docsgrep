@@ -2,6 +2,7 @@
 // Covers OWASP Top 10, ISO/IEC 27001, and industry security standards
 
 import { getIgnorePatterns } from "./utils/file.js";
+import { CodeSanitizer } from "./utils/code-analysis.js";
 
 export interface SecurityIssue {
   file: string;
@@ -166,6 +167,7 @@ class SecurityAnalyzer {
   // Check for OWASP Top 10 issues
   checkOWASPIssues(content: string, filePath: string): SecurityIssue[] {
     const issues: SecurityIssue[] = [];
+    const ext = filePath.split('.').pop()?.toLowerCase() || 'ts';
     
     // Skip self-checking: don't flag docsgrep's own source files
     if (filePath.includes('security-audit') || 
@@ -175,20 +177,19 @@ class SecurityAnalyzer {
     }
     
     const lines = content.split('\n');
+    const sanitizedContent = CodeSanitizer.stripComments(content, ext);
 
     for (const [category, config] of Object.entries(this.owaspPatterns) as [string, { patterns: RegExp[]; description: string }][]) {
       if (config.patterns.length === 0) continue; // Skip categories checked elsewhere
 
       for (const pattern of config.patterns) {
         let match;
-        while ((match = pattern.exec(content)) !== null) {
-          const lineNum = content.substring(0, match.index).split('\n').length;
-          const lineContent = lines[lineNum - 1]?.trim() || '';
+        pattern.lastIndex = 0;
+        while ((match = pattern.exec(sanitizedContent)) !== null) {
+          const lineNum = sanitizedContent.substring(0, match.index).split('\n').length;
+          const originalLine = lines[lineNum - 1]?.trim() || '';
           
-          // Skip if in comments or strings (simplified check)
-          if (lineContent.startsWith('//') || lineContent.startsWith('#') || lineContent.startsWith('/*')) {
-            continue;
-          }
+          if (CodeSanitizer.isIgnored(originalLine)) continue;
 
           issues.push({
             file: filePath,
@@ -198,7 +199,7 @@ class SecurityAnalyzer {
             owaspCategory: category,
             title: category,
             description: config.description,
-            evidence: lineContent.substring(0, 100),
+            evidence: originalLine.substring(0, 100),
             impact: this.getImpactForOWASP(category),
             remediation: this.getRemediationForOWASP(category),
           });
@@ -212,22 +213,26 @@ class SecurityAnalyzer {
   // Check for secrets in code
   checkSecrets(content: string, filePath: string): Array<{file: string; line?: number; type: string; value?: string}> {
     const found: Array<{file: string; line?: number; type: string; value?: string}> = [];
+    const ext = filePath.split('.').pop()?.toLowerCase() || 'ts';
     
     // Skip if file is an example or sample (common in OSS repos)
     const fileName = filePath.toLowerCase();
-    if (fileName.includes('example') || fileName.includes('sample')) {
+    if (fileName.includes('example') || fileName.includes('sample') || fileName.includes('.test.')) {
       return found;
     }
     
     const lines = content.split('\n');
+    const sanitizedContent = CodeSanitizer.stripComments(content, ext);
 
     for (const secret of this.secretPatterns) {
       let match;
       // Reset lastIndex for global regex
       secret.pattern.lastIndex = 0;
       
-      while ((match = secret.pattern.exec(content)) !== null) {
-        const lineNum = content.substring(0, match.index).split('\n').length;
+      while ((match = secret.pattern.exec(sanitizedContent)) !== null) {
+        const lineNum = sanitizedContent.substring(0, match.index).split('\n').length;
+        if (CodeSanitizer.isIgnored(lines[lineNum - 1])) continue;
+
         found.push({
           file: filePath,
           line: lineNum,
@@ -244,18 +249,23 @@ class SecurityAnalyzer {
   checkPIIHandling(content: string, filePath: string): SecurityIssue[] {
     const issues: SecurityIssue[] = [];
     const lines = content.split('\n');
+    const ext = filePath.split('.').pop()?.toLowerCase() || 'ts';
+    
+    const sanitizedContent = CodeSanitizer.stripComments(content, ext);
 
     // Check if PII is being logged or exposed
     for (const pii of this.piiPatterns) {
       let match;
       pii.pattern.lastIndex = 0;
       
-      while ((match = pii.pattern.exec(content)) !== null) {
-        const lineNum = content.substring(0, match.index).split('\n').length;
-        const lineContent = lines[lineNum - 1] || '';
+      while ((match = pii.pattern.exec(sanitizedContent)) !== null) {
+        const lineNum = sanitizedContent.substring(0, match.index).split('\n').length;
+        const originalLine = lines[lineNum - 1] || '';
+        
+        if (CodeSanitizer.isIgnored(originalLine)) continue;
 
         // Check if it's being logged
-        if (/console\.|print\(|log\(|logger\./.test(lineContent)) {
+        if (/console\.|print\(|log\(|logger\./.test(originalLine)) {
           issues.push({
             file: filePath,
             line: lineNum,
@@ -263,7 +273,7 @@ class SecurityAnalyzer {
             category: 'Privacy',
             title: 'PII in Logs',
             description: `Potential ${pii.name} being logged: ${match[0].substring(0, 20)}...`,
-            evidence: lineContent.substring(0, 100),
+            evidence: originalLine.trim().substring(0, 100),
             impact: 'PII in logs violates GDPR, CCPA, and other privacy regulations',
             remediation: 'Never log PII. Use masking/redaction. Implement proper data handling.',
           });

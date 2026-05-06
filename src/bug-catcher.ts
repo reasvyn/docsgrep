@@ -2,6 +2,8 @@
 // Focuses on: runtime errors, potential bugs, race conditions, memory leaks, 
 // dependency coupling, and performance issues with large data handling
 
+import { CodeSanitizer } from "./utils/code-analysis.js";
+
 export interface BugIssue {
   file: string;
   line?: number;
@@ -216,20 +218,27 @@ export class BugDetector {
   detectBugs(content: string, filePath: string): BugIssue[] {
     const issues: BugIssue[] = [];
     const lines = content.split('\n');
+    const ext = filePath.split('.').pop()?.toLowerCase() || 'ts';
     const isTestFile = filePath.includes('.test.') || filePath.includes('.spec.') || filePath.includes('/test/');
+
+    // Create sanitized version for logic-based checks (ignore comments AND strings)
+    const sanitizedContent = CodeSanitizer.stripStrings(CodeSanitizer.stripComments(content, ext));
+    const sanitizedLines = sanitizedContent.split('\n');
 
     // 1. Runtime Errors
     for (const [category, config] of Object.entries(this.runtimeErrorPatterns)) {
       for (const pattern of config.patterns) {
         let match;
         pattern.lastIndex = 0;
-        while ((match = pattern.exec(content)) !== null) {
-          const lineNum = content.substring(0, match.index).split('\n').length;
-          const lineContent = lines[lineNum - 1] || '';
+        while ((match = pattern.exec(sanitizedContent)) !== null) {
+          const lineNum = sanitizedContent.substring(0, match.index).split('\n').length;
+          const originalLine = lines[lineNum - 1] || '';
           
+          if (CodeSanitizer.isIgnored(originalLine)) continue;
+
           // SMART FILTER: Skip await/promise if inside try-catch block
           if (category === 'Unhandled Promise Rejection') {
-            const surroundingLines = lines.slice(Math.max(0, lineNum - 5), Math.min(lines.length, lineNum + 2)).join('\n');
+            const surroundingLines = sanitizedLines.slice(Math.max(0, lineNum - 5), Math.min(sanitizedLines.length, lineNum + 2)).join('\n');
             if (surroundingLines.includes('try {') || surroundingLines.includes('try{')) {
               continue; // Likely handled
             }
@@ -242,7 +251,7 @@ export class BugDetector {
             category: 'Runtime Error',
             title: category,
             description: config.description,
-            evidence: lineContent.substring(0, 100),
+            evidence: originalLine.trim().substring(0, 100),
             impact: 'May cause runtime exceptions or unexpected behavior',
             remediation: this.getRemediationForRuntime(category),
           });
@@ -255,8 +264,11 @@ export class BugDetector {
       for (const pattern of config.patterns) {
         let match;
         pattern.lastIndex = 0;
-        while ((match = pattern.exec(content)) !== null) {
-          const lineNum = content.substring(0, match.index).split('\n').length;
+        while ((match = pattern.exec(sanitizedContent)) !== null) {
+          const lineNum = sanitizedContent.substring(0, match.index).split('\n').length;
+          const originalLine = lines[lineNum - 1] || '';
+          if (CodeSanitizer.isIgnored(originalLine)) continue;
+
           issues.push({
             file: filePath,
             line: lineNum,
@@ -264,7 +276,7 @@ export class BugDetector {
             category: 'Race Condition',
             title: category,
             description: config.description,
-            evidence: lines[lineNum - 1]?.substring(0, 100),
+            evidence: originalLine.trim().substring(0, 100),
             impact: 'May cause data races, inconsistent state, or flaky tests',
             remediation: this.getRemediationForRace(category),
           });
@@ -280,8 +292,11 @@ export class BugDetector {
         // Skip positive patterns (like WeakMap which is good)
         if (category.includes('WeakMap') || category.includes('WeakSet')) continue;
         
-        while ((match = pattern.exec(content)) !== null) {
-          const lineNum = content.substring(0, match.index).split('\n').length;
+        while ((match = pattern.exec(sanitizedContent)) !== null) {
+          const lineNum = sanitizedContent.substring(0, match.index).split('\n').length;
+          const originalLine = lines[lineNum - 1] || '';
+          if (CodeSanitizer.isIgnored(originalLine)) continue;
+
           issues.push({
             file: filePath,
             line: lineNum,
@@ -289,7 +304,7 @@ export class BugDetector {
             category: 'Memory Leak',
             title: category,
             description: config.description,
-            evidence: lines[lineNum - 1]?.substring(0, 100),
+            evidence: originalLine.trim().substring(0, 100),
             impact: 'May cause memory growth over time, leading to crashes',
             remediation: this.getRemediationForMemory(category),
           });
@@ -297,20 +312,21 @@ export class BugDetector {
       }
     }
 
-    // 4. Dependency Coupling
+    // 4. Dependency Coupling - Uses version with ONLY comments stripped (need strings for imports)
+    const sanitizedCommentsOnly = CodeSanitizer.stripComments(content, ext);
     for (const [category, config] of Object.entries(this.couplingPatterns)) {
       for (const pattern of config.patterns) {
         let match;
         pattern.lastIndex = 0;
-        const matches = content.match(pattern) || [];
-        if (matches.length > 10) { // Only flag if many imports/instantiations
+        const matches = sanitizedCommentsOnly.match(pattern) || [];
+        if (matches.length > 10) { // Threshold for coupling
           issues.push({
             file: filePath,
             severity: this.getSeverityForCategory('coupling'),
             category: 'Dependency Coupling',
             title: category,
             description: `${config.description} (found ${matches.length} instances)`,
-            evidence: `Found ${matches.length} patterns`,
+            evidence: `Found ${matches.length} instances`,
             impact: 'High coupling makes code hard to test, maintain, and refactor',
             remediation: this.getRemediationForCoupling(category),
           });
@@ -324,8 +340,11 @@ export class BugDetector {
       for (const pattern of config.patterns) {
         let match;
         pattern.lastIndex = 0;
-        while ((match = pattern.exec(content)) !== null) {
-          const lineNum = content.substring(0, match.index).split('\n').length;
+        while ((match = pattern.exec(sanitizedContent)) !== null) {
+          const lineNum = sanitizedContent.substring(0, match.index).split('\n').length;
+          const originalLine = lines[lineNum - 1] || '';
+          if (CodeSanitizer.isIgnored(originalLine)) continue;
+
           issues.push({
             file: filePath,
             line: lineNum,
@@ -333,7 +352,7 @@ export class BugDetector {
             category: 'Performance',
             title: category,
             description: config.description,
-            evidence: lines[lineNum - 1]?.substring(0, 100),
+            evidence: originalLine.trim().substring(0, 100),
             impact: 'May cause performance degradation with large data or high load',
             remediation: this.getRemediationForPerformance(category),
           });
@@ -341,13 +360,17 @@ export class BugDetector {
       }
     }
 
-    // 6. Unresolved Issues
+    // 6. Unresolved Issues (Use ORIGINAL content for TODO/FIXME, but sanitized for console)
     for (const [category, config] of Object.entries(this.unresolvedPatterns)) {
+      const searchContent = category.includes('TODO') ? content : sanitizedContent;
       for (const pattern of config.patterns) {
         let match;
         pattern.lastIndex = 0;
-        while ((match = pattern.exec(content)) !== null) {
-          const lineNum = content.substring(0, match.index).split('\n').length;
+        while ((match = pattern.exec(searchContent)) !== null) {
+          const lineNum = searchContent.substring(0, match.index).split('\n').length;
+          const originalLine = lines[lineNum - 1] || '';
+          if (CodeSanitizer.isIgnored(originalLine)) continue;
+
           issues.push({
             file: filePath,
             line: lineNum,
@@ -355,7 +378,7 @@ export class BugDetector {
             category: 'Unresolved',
             title: category,
             description: config.description,
-            evidence: lines[lineNum - 1]?.substring(0, 100),
+            evidence: originalLine.trim().substring(0, 100),
             impact: 'Indicates known issues that should be addressed',
             remediation: 'Address the underlying issue or create tracking tickets',
           });

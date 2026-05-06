@@ -13,8 +13,9 @@ describe('best-practices', () => {
 
   it('should analyze project and detect code smells', async () => {
     vi.mocked(glob).mockImplementation(async (pattern: any) => {
-      if (pattern.includes('**/*.{js,ts')) return ['src/main.ts', 'src/utils.ts'];
-      if (pattern.includes('README')) return ['README.md'];
+      const p = Array.isArray(pattern) ? pattern.join(',') : pattern;
+      if (p.includes('**/*.{js,ts')) return ['src/main.ts', 'src/utils.ts'];
+      if (p.includes('README')) return ['README.md'];
       return [];
     });
     

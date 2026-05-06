@@ -70,7 +70,7 @@ describe('git utils', () => {
 
     it('should include branch in path if provided', () => {
       const repoUrl = 'https://github.com/user/repo.git';
-      const cachePath = getRepoCachePath(repoUrl, 'develop');
+      const cachePath = getRepoCachePath(repoUrl, { branch: 'develop' });
       
       expect(cachePath).toContain('develop');
     });

@@ -17,6 +17,7 @@ import { logger } from "./utils/logger.js";
 import { operationLimiter } from "./utils/semaphore.js";
 import { validateStringParam, validateDirPath } from "./utils/validation.js";
 import { checkCapabilities, getCapabilityGapMessage } from "./utils/capabilities.js";
+import { CliFormatter } from "./utils/formatter.js";
 
 // Types
 import {
@@ -809,11 +810,167 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
   }
 });
 
-// Run the server
+// Run the server or CLI mode
 async function run() {
+  const args = process.argv.slice(2);
+  
+  if (args[0] === "run") {
+    await runCli(args.slice(1));
+    return;
+  }
+
   const transport = new StdioServerTransport();
   await server.connect(transport);
   console.error("docsgrep server is running on stdio");
+}
+
+/**
+ * Simple CLI runner for manual execution
+ * Usage: docsgrep run {tool_name} [--param1 value1 --format text|json]
+ */
+async function runCli(cliArgs: string[]) {
+  const toolName = cliArgs[0];
+  const availableTools = [
+    "lint_code", "guard_security", "catch_bugs", "gauge_docs", 
+    "smell_stale", "sniff_style", "spy_stack", "hunt_docs", 
+    "grep_docs", "fathom_meaning", "tldr_docs", "sync_docs", 
+    "verify_truth", "spot_delta", "catch_fossils"
+  ];
+
+  if (!toolName || !availableTools.includes(toolName)) {
+    console.log("\n📖 docsgrep CLI - Clean Code & Documentation Assistant");
+    console.log("Usage: docsgrep run {tool_name} [--param value] [--format text|json]");
+    console.log("\nOptions:");
+    console.log("  --format   Output format: 'text' (default) or 'json'");
+    console.log("\nAvailable tools:");
+    availableTools.sort().forEach(t => console.log(`  - ${t}`));
+    console.log("\nExample: npm run lint OR npx docsgrep run lint_code --dirPath ./src --format text");
+    process.exit(toolName ? 1 : 0);
+  }
+
+  // Parse arguments: --key value or --key=value
+  const toolArgs: any = {};
+  let outputFormat = "text"; // Default for CLI
+
+  for (let i = 1; i < cliArgs.length; i++) {
+    const arg = cliArgs[i];
+    if (arg.startsWith("--")) {
+      const [key, val] = arg.replace(/^--/, "").split("=");
+
+      let finalVal: any;
+      if (val !== undefined) {
+        finalVal = parseValue(val);
+      } else if (cliArgs[i + 1] && !cliArgs[i + 1].startsWith("--")) {
+        finalVal = parseValue(cliArgs[i + 1]);
+        i++;
+      } else {
+        finalVal = true; // Boolean flag
+      }
+
+      if (key === "format") {
+        outputFormat = finalVal;
+      } else {
+        toolArgs[key] = finalVal;
+      }
+    }
+  }
+
+  // Default dirPath to current directory if not provided
+  if (!toolArgs.dirPath && !toolArgs.projectPath && !toolArgs.filePath) {
+    toolArgs.dirPath = process.cwd();
+  }
+
+  console.log(`\n🚀 docsgrep: Running tool '${toolName}'...`);
+
+  try {
+    const response = await executeToolByName(toolName, toolArgs);
+    if (response.isError) {
+      console.error(`\n❌ Error:`, response.content[0].text);
+      process.exit(1);
+    }
+
+    const content = response.content[0].text;
+
+    if (outputFormat === "json") {
+      try {
+        console.log(`\n✅ Results (JSON):\n`);
+        console.log(JSON.stringify(JSON.parse(content), null, 2));
+      } catch {
+        console.log(`\n✅ Results:\n`);
+        console.log(content);
+      }
+    } else {
+      // Human-friendly text format (Default)
+      console.log(CliFormatter.format(content, toolName));
+    }
+  } catch (error: any) {
+    console.error(`\n❌ Fatal Error: ${error.message}`);
+    process.exit(1);
+  }
+}
+
+
+function parseValue(val: string): any {
+  if (val === "true") return true;
+  if (val === "false") return false;
+  if (!isNaN(Number(val)) && val.trim() !== "") return Number(val);
+  if (val.includes(",")) return val.split(",").map(v => v.trim());
+  return val;
+}
+
+async function executeToolByName(name: string, args: any): Promise<McpToolResponse> {
+  switch (name) {
+    case "setup_camp":
+      return await handleSetupCamp(args);
+    case "spy_stack":
+      return await handleSpyStack(args);
+    case "sniff_style":
+      return await handleSniffStyle(args);
+    case "hunt_docs":
+      return await handleHuntDocs(args);
+    case "fetch_repo":
+      return await handleFetchRepo(args);
+    case "peek_file":
+      return await handlePeekFile(args);
+    case "purge_cache":
+      return await handlePurgeCache(args);
+    case "grep_docs":
+      return await handleGrepDocs(args);
+    case "lint_code":
+      return await handleLintCodeTool(args);
+    case "ask_lint":
+      return await handleAskLintTool(args);
+    case "guard_security":
+      return await handleGuardSecurityTool(args);
+    case "ask_guard":
+      return await handleAskGuardTool(args);
+    case "catch_bugs":
+      return await handleCatchBugsTool(args);
+    case "fathom_meaning":
+      return await handleFathomMeaning(args);
+    case "tldr_docs":
+      return await handleTldrDocs(args);
+    case "hunt_related":
+      return await handleHuntRelated(args);
+    case "smell_stale":
+      return await handleSmellStale(args);
+    case "sync_docs":
+      return await handleSyncDocs(args);
+    case "verify_truth":
+      return await handleVerifyTruth(args);
+    case "sense_surroundings":
+      return await handleSenseSurroundings(args);
+    case "spot_delta":
+      return await handleSpotDelta(args);
+    case "doc_the_tools":
+      return await handleDocTheTools(args);
+    case "catch_fossils":
+      return await handleCatchFossils(args);
+    case "gauge_docs":
+      return await handleGaugeDocs(args);
+    default:
+      throw new Error(`Unknown tool: ${name}`);
+  }
 }
 
 run().catch((error) => {

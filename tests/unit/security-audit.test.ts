@@ -49,7 +49,8 @@ describe('security-audit', () => {
 
   it('should analyze dependencies', async () => {
     vi.mocked(glob).mockImplementation(async (pattern: any) => {
-      if (pattern.includes('lock')) return ['package-lock.json'];
+      const p = Array.isArray(pattern) ? pattern.join(',') : pattern;
+      if (p.includes('lock')) return ['package-lock.json'];
       return [];
     });
     vi.mocked(fs.readFile).mockResolvedValue('{"dependencies": {"lodash": "4.17.21"}}' as any);
