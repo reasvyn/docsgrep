@@ -20,6 +20,20 @@ export class Logger {
     );
   }
 
+  debug(message: string, meta?: Record<string, any>): void {
+    if (process.env.DEBUG) {
+      console.error(
+        JSON.stringify({
+          level: 'debug',
+          context: this.context,
+          message,
+          timestamp: new Date().toISOString(),
+          ...meta,
+        })
+      );
+    }
+  }
+
   error(message: string, meta?: Record<string, any>): void {
     console.error(
       JSON.stringify({

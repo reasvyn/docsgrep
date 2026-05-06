@@ -56,6 +56,9 @@ import {
 } from "./tools/help-info.js";
 import { handleMapArchetypesTool } from "./tools/archetypes.js";
 
+// Plugins
+import { PluginManager } from "./utils/plugin-manager.js";
+
 // Existing tool imports
 import { performUniversalAudit as performAudit, type AuditReport } from "./best-practices.js";
 import { getAuditPrompt } from "./audit.js";
@@ -176,7 +179,7 @@ async function handleAskGuardTool(args: any): Promise<McpToolResponse> {
 
 // Register all tools
 server.setRequestHandler(ListToolsRequestSchema, async () => {
-  return {
+  const response = {
     tools: [
       {
         name: "setup_camp",
@@ -751,6 +754,12 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
       },
     ],
   };
+
+  // Add plugin tools
+  const pluginTools = PluginManager.getRegisteredToolDefinitions();
+  response.tools.push(...pluginTools as any);
+
+  return response;
 });
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -809,6 +818,12 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
       case "map_archetypes":
         return await handleMapArchetypesTool(args as any);
       default:
+        // Try plugin handlers
+        const pluginHandler = PluginManager.getHandler(name);
+        if (pluginHandler) {
+          return await pluginHandler(args);
+        }
+
         throw new McpError(
           ErrorCode.MethodNotFound,
           `Unknown tool: ${name}`
@@ -831,6 +846,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
 async function run() {
   const args = process.argv.slice(2);
   
+  // Initialize plugins
+  await PluginManager.discoverPlugins();
+
   if (args[0] === "run") {
     await runCli(args.slice(1));
     return;
@@ -847,12 +865,14 @@ async function run() {
  */
 async function runCli(cliArgs: string[]) {
   const toolName = cliArgs[0];
-  const availableTools = [
+  const coreTools = [
     "lint_code", "guard_security", "catch_bugs", "gauge_docs", 
     "smell_stale", "sniff_style", "spy_stack", "hunt_docs", 
     "grep_docs", "fathom_meaning", "tldr_docs", "sync_docs", 
     "verify_truth", "spot_delta", "catch_fossils", "map_archetypes"
   ];
+  const pluginTools = PluginManager.getRegisteredToolDefinitions().map(t => t.name);
+  const availableTools = [...coreTools, ...pluginTools];
 
   if (!toolName || !availableTools.includes(toolName)) {
     console.log("\n📖 docsgrep CLI - Clean Code & Documentation Assistant");
@@ -988,6 +1008,10 @@ async function executeToolByName(name: string, args: any): Promise<McpToolRespon
     case "map_archetypes":
       return await handleMapArchetypesTool(args);
     default:
+      const pluginHandler = PluginManager.getHandler(name);
+      if (pluginHandler) {
+        return await pluginHandler(args);
+      }
       throw new Error(`Unknown tool: ${name}`);
   }
 }
