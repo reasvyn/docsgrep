@@ -16,11 +16,18 @@ export class ArchetypeEngine {
   /**
    * Primary method to analyze project archetypes and patterns
    */
-  static async analyze(dirPath: string, minSimilarity: number = 0.8, excludePath?: string[]): Promise<ArchetypeReport> {
+  static async analyze(
+    dirPath: string, 
+    minSimilarity: number = 0.8, 
+    includePath?: string[],
+    excludePath?: string[]
+  ): Promise<ArchetypeReport> {
     // 1. Scan and parse all components
-    const files = await FileScanner.findFiles({ dirPath, excludePath }, [
-      "**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift}"
-    ]);
+    const defaultPatterns = ["**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift}"];
+    const files = await FileScanner.findFiles(
+      { dirPath, includePath: includePath || defaultPatterns, excludePath }, 
+      includePath ? [] : defaultPatterns
+    );
     
     const components: ArchetypeComponent[] = [];
     for (const file of files) {

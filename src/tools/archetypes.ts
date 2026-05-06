@@ -13,12 +13,13 @@ export class MapArchetypesTool extends BaseTool<MapArchetypesArgs> {
   name = "map_archetypes";
 
   async run(args: MapArchetypesArgs): Promise<McpToolResponse> {
-    const { dirPath: rawPath, minSimilarity, excludePath } = args;
+    const { dirPath: rawPath, minSimilarity, includePath, excludePath } = args;
     const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
     
     const report = await ArchetypeEngine.analyze(
       dirPath, 
       minSimilarity || 0.8, 
+      includePath,
       excludePath
     );
 

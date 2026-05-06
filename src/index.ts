@@ -743,11 +743,17 @@ server.setRequestHandler(ListToolsRequestSchema, async () => {
               enum: ["interface", "base_class", "trait", "all"],
               description: "Optional focus area for suggestions.",
             },
+            includePath: {
+              type: "array",
+              items: { type: "string" },
+              description: "Optional glob patterns to include in scanning.",
+            },
             excludePath: {
               type: "array",
               items: { type: "string" },
               description: "Optional glob patterns to exclude from scanning.",
             },
+
           },
           required: ["dirPath"],
         },

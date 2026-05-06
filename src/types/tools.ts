@@ -175,6 +175,7 @@ export interface MapArchetypesArgs {
   dirPath: string;
   minSimilarity?: number;
   focus?: 'interface' | 'base_class' | 'trait' | 'all';
+  includePath?: string[];
   excludePath?: string[];
 }
 
