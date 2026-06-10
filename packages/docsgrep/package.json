@@ -1,0 +1,52 @@
+{
+  "name": "docsgrep",
+  "version": "0.8.0",
+  "description": "Documentation search, code quality auditing, security scanning, and bug detection — available as a CLI devtool and MCP server",
+  "type": "module",
+  "bin": {
+    "docsgrep": "build/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "prepare": "bun run build",
+    "start": "bun run build/index.js",
+    "dev": "bun run src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "bun run build/index.js run analyze_code",
+    "audit": "bun run build/index.js run audit_security",
+    "bugs": "bun run build/index.js run catch_bugs",
+    "docs:check": "bun run build/index.js run measure_coverage",
+    "docs:stale": "bun run build/index.js run check_stale",
+    "release": "bun run scripts/publish.js"
+  },
+  "keywords": [
+    "cli",
+    "devtool",
+    "documentation",
+    "code-quality",
+    "code-audit",
+    "security-scanning",
+    "bug-detection",
+    "mcp",
+    "mcp-server"
+  ],
+  "author": "Reas Vyn <reasvyn@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "glob": "^10.0.0",
+    "simple-git": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.13",
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^4.1.5",
+    "rimraf": "^5.0.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.3",
+    "vitest": "^4.1.5"
+  }
+}
