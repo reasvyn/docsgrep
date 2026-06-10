@@ -1,6 +1,6 @@
 {
   "name": "docsgrep",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "description": "Documentation search, code quality auditing, security scanning, and bug detection — available as a CLI devtool and MCP server",
   "type": "module",
   "bin": {
