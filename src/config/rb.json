@@ -1,0 +1,12 @@
+{
+  "name": "Ruby",
+  "alias": "rb",
+  "extensions": ["rb", "erb", "rake", "gemspec"],
+  "configFiles": ["Gemfile", "Gemfile.lock", "*.gemspec"],
+  "commentStyle": { "single": "#", "multiStart": "=begin", "multiEnd": "=end", "hashBang": true },
+  "docStyle": { "single": "#", "multiStart": null, "multiEnd": null },
+  "packageManager": "Bundler",
+  "ecosystem": "RubyGems",
+  "ignoreFiles": [".bundle/", "vendor/bundle/"],
+  "debugPatterns": ["puts\\s+", "p\\s+", "pp\\s+", "byebug\\s*$", "binding\\.pry\\s*$"]
+}

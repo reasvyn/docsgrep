@@ -36,19 +36,35 @@ export class CliFormatter {
   }
 
   private static formatAuditReport(data: any, toolName: string): string {
-    const s = data.summary;
+    const summary = data.summary;
     let out = `\n${"=".repeat(60)}\n`;
     out += `📊 ${toolName.toUpperCase()} REPORT\n`;
     out += `${"=".repeat(60)}\n\n`;
 
     // Summary Section
     out += `📈 SUMMARY:\n`;
-    out += `  - Files Scanned: ${s.filesScanned}\n`;
-    out += `  - Total Issues:  ${s.totalIssues}\n`;
-    if (s.codeQualityScore !== undefined) out += `  - Quality Score: ${this.colorScore(s.codeQualityScore)}/100\n`;
-    if (s.securityScore !== undefined) out += `  - Security Score: ${this.colorScore(s.securityScore)}/100\n`;
-    if (s.bugScore !== undefined) out += `  - Bug Score:      ${this.colorScore(s.bugScore)}/100\n`;
-    out += `  - Severity:      🔴 ${s.critical || 0} Critical, 🟠 ${s.high || 0} High, 🟡 ${s.medium || 0} Medium, 🔵 ${s.low || 0} Low\n\n`;
+    out += `  - Files Scanned: ${summary.filesScanned}\n`;
+    out += `  - Total Issues:  ${summary.totalIssues}\n`;
+    if (summary.codeQualityScore !== undefined) out += `  - Quality Score: ${this.colorScore(summary.codeQualityScore)}/100\n`;
+    if (summary.documentationScore !== undefined) out += `  - Docs Score:    ${this.colorScore(summary.documentationScore)}/100\n`;
+    if (summary.securityScore !== undefined) out += `  - Security Score: ${this.colorScore(summary.securityScore)}/100\n`;
+    if (summary.bugScore !== undefined) out += `  - Bug Score:      ${this.colorScore(summary.bugScore)}/100\n`;
+    out += `  - Severity:      🔴 ${summary.critical || 0} Critical, 🟠 ${summary.high || 0} High, 🟡 ${summary.medium || 0} Medium, 🔵 ${summary.low || 0} Low\n\n`;
+
+    // Project Readiness Section (new)
+    if (data.projectReadiness) {
+      const r = data.projectReadiness;
+      out += `📋 PROJECT READINESS:\n`;
+      out += `  ${r.hasLicense ? '✅' : '❌'} License file\n`;
+      out += `  ${r.hasGitignore ? '✅' : '❌'} .gitignore\n`;
+      out += `  ${r.gitignoreCoversBasics ? '✅' : '⚠️'} .gitignore covers deps/build/env\n`;
+      out += `  ${r.hasEnvExample ? '✅' : '❌'} .env.example\n`;
+      out += `  ${r.hasEditorconfig ? '✅' : '❌'} .editorconfig\n`;
+      if (r.detectedType !== 'unknown') {
+        out += `  Project type: ${r.detectedType}\n`;
+      }
+      out += `\n`;
+    }
 
     // Issues Section
     const allIssues: any[] = [];

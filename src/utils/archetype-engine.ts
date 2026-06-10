@@ -5,6 +5,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { FileScanner } from '../tools/base.js';
 import { CodeSanitizer } from './code-analysis.js';
+import { SupportedLanguage } from './supported-language.js';
 import { 
   type ArchetypeComponent, 
   type ComponentRole, 
@@ -23,7 +24,8 @@ export class ArchetypeEngine {
     excludePath?: string[]
   ): Promise<ArchetypeReport> {
     // 1. Scan and parse all components
-    const defaultPatterns = ["**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift}"];
+    const allExt = `**/*.{${SupportedLanguage.all().flatMap(l => l.extensions).join(",")}}`;
+    const defaultPatterns = [allExt];
     const files = await FileScanner.findFiles(
       { dirPath, includePath: includePath || defaultPatterns, excludePath }, 
       includePath ? [] : defaultPatterns

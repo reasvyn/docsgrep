@@ -1,0 +1,12 @@
+{
+  "name": "Java",
+  "alias": "java",
+  "extensions": ["java", "class", "jar", "war"],
+  "configFiles": ["pom.xml", "build.gradle", "build.gradle.kts", "gradle.properties", "settings.gradle"],
+  "commentStyle": { "single": "//", "multiStart": "/*", "multiEnd": "*/", "hashBang": false },
+  "docStyle": { "single": null, "multiStart": "/**", "multiEnd": "*/" },
+  "packageManager": "Maven / Gradle",
+  "ecosystem": "Maven Central",
+  "ignoreFiles": ["target/", "build/", "*.class", ".gradle/", "out/"],
+  "debugPatterns": ["System\\.out\\.println\\s*\\(", "System\\.err\\.println\\s*\\(", "e\\.printStackTrace\\s*\\("]
+}

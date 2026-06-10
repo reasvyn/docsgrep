@@ -1,0 +1,12 @@
+{
+  "name": "C# / .NET",
+  "alias": "cs",
+  "extensions": ["cs", "csx", "vb", "fs", "fsx"],
+  "configFiles": ["*.csproj", "*.sln", "nuget.config", "global.json"],
+  "commentStyle": { "single": "//", "multiStart": "/*", "multiEnd": "*/", "hashBang": false },
+  "docStyle": { "single": "///", "multiStart": "/**", "multiEnd": "*/" },
+  "packageManager": "NuGet",
+  "ecosystem": "NuGet Gallery",
+  "ignoreFiles": ["bin/", "obj/", "packages/"],
+  "debugPatterns": ["Console\\.(WriteLine|Write|Debug)\\s*\\(", "System\\.Diagnostics\\.Debug\\.WriteLine\\s*\\("]
+}

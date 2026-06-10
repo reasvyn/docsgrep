@@ -1,0 +1,12 @@
+{
+  "name": "PHP",
+  "alias": "php",
+  "extensions": ["php", "phtml", "php3", "php4", "php5", "phps"],
+  "configFiles": ["composer.json", "composer.lock"],
+  "commentStyle": { "single": "//", "multiStart": "/*", "multiEnd": "*/", "hashBang": true },
+  "docStyle": { "single": null, "multiStart": "/**", "multiEnd": "*/" },
+  "packageManager": "Composer",
+  "ecosystem": "Packagist",
+  "ignoreFiles": ["vendor/"],
+  "debugPatterns": ["var_dump\\s*\\(", "print_r\\s*\\(", "echo\\s+"]
+}

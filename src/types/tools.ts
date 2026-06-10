@@ -12,27 +12,27 @@ export interface McpToolResponse {
 
 // Handler Arguments Interfaces
 
-export interface SetupCampArgs {
+export interface InitWorkspaceArgs {
   projectPath: string;
 }
 
-export interface SpyStackArgs {
+export interface DetectStackArgs {
   dirPath: string;
   excludePath?: string[];
 }
 
-export interface SniffStyleArgs {
+export interface CheckStyleArgs {
   dirPath: string;
   excludePath?: string[];
 }
 
-export interface HuntDocsArgs {
+export interface FindDocsArgs {
   dirPath: string;
   includePath?: string[];
   excludePath?: string[];
 }
 
-export interface FetchRepoArgs {
+export interface CloneRepoArgs {
   repoUrl: string;
   branch?: string;
   tag?: string;
@@ -41,16 +41,16 @@ export interface FetchRepoArgs {
   sshKeyPath?: string;
 }
 
-export interface PeekFileArgs {
+export interface ReadFileArgs {
   filePath: string;
 }
 
-export interface PurgeCacheArgs {
+export interface ClearCacheArgs {
   localProjectPath: string;
   maxAgeDays?: number;
 }
 
-export interface GrepDocsArgs {
+export interface SearchDocsArgs {
   dirPath: string;
   pattern: string;
   filePattern?: string;
@@ -59,7 +59,7 @@ export interface GrepDocsArgs {
   excludePath?: string[];
 }
 
-export interface LintCodeArgs {
+export interface AnalyzeCodeArgs {
   dirPath: string;
   filePatterns?: string[]; // Kept for backward compatibility, will map to includePath
   focusAreas?: string[];
@@ -67,18 +67,18 @@ export interface LintCodeArgs {
   excludePath?: string[];
 }
 
-export interface AskLintArgs {
+export interface LintInteractiveArgs {
   dirPath: string;
 }
 
-export interface GuardSecurityArgs {
+export interface AuditSecurityArgs {
   dirPath: string;
   filePatterns?: string[]; // Kept for backward compatibility
   includePath?: string[];
   excludePath?: string[];
 }
 
-export interface AskGuardArgs {
+export interface SecurityInteractiveArgs {
   dirPath: string;
 }
 
@@ -89,7 +89,7 @@ export interface CatchBugsArgs {
   excludePath?: string[];
 }
 
-export interface FathomMeaningArgs {
+export interface SemanticSearchArgs {
   dirPath: string;
   query: string;
   topK?: number;
@@ -97,12 +97,12 @@ export interface FathomMeaningArgs {
   excludePath?: string[];
 }
 
-export interface TldrDocsArgs {
+export interface SummarizeDocArgs {
   filePath: string;
   maxLength?: number;
 }
 
-export interface HuntRelatedArgs {
+export interface FindRelatedArgs {
   dirPath: string;
   topic: string;
   threshold?: number;
@@ -110,7 +110,7 @@ export interface HuntRelatedArgs {
   excludePath?: string[];
 }
 
-export interface SmellStaleArgs {
+export interface CheckStaleArgs {
   dirPath: string;
   maxAgeDays?: number;
   compareWithCode?: boolean;
@@ -118,7 +118,7 @@ export interface SmellStaleArgs {
   excludePath?: string[];
 }
 
-export interface SyncDocsArgs {
+export interface SyncDocumentationArgs {
   dirPath: string;
   filePaths?: string[];
   updateMode?: "create" | "update" | "both";
@@ -126,7 +126,7 @@ export interface SyncDocsArgs {
   excludePath?: string[];
 }
 
-export interface VerifyTruthArgs {
+export interface VerifyDocsArgs {
   dirPath: string;
   docPath: string;
   strictMode?: boolean;
@@ -134,7 +134,7 @@ export interface VerifyTruthArgs {
   excludePath?: string[];
 }
 
-export interface SenseSurroundingsArgs {
+export interface GetContextArgs {
   dirPath: string;
   currentFilePath: string;
   contextDepth?: "minimal" | "standard" | "deep";
@@ -142,7 +142,7 @@ export interface SenseSurroundingsArgs {
   excludePath?: string[];
 }
 
-export interface SpotDeltaArgs {
+export interface CheckDeltaArgs {
   dirPath: string;
   docPath: string;
   includeCodeSnippets?: boolean;
@@ -150,12 +150,11 @@ export interface SpotDeltaArgs {
   excludePath?: string[];
 }
 
-export interface DocTheToolsArgs {
+export interface ShowHelpArgs {
   toolName?: string;
-  includeExamples?: boolean;
 }
 
-export interface CatchFossilsArgs {
+export interface CheckArtefactsArgs {
   dirPath: string;
   sinceCommit?: string;
   priorityMode?: "impact" | "recency";
@@ -163,7 +162,7 @@ export interface CatchFossilsArgs {
   excludePath?: string[];
 }
 
-export interface GaugeDocsArgs {
+export interface MeasureCoverageArgs {
   dirPath: string;
   filePatterns?: string[];
   publicOnly?: boolean;
@@ -171,7 +170,7 @@ export interface GaugeDocsArgs {
   excludePath?: string[];
 }
 
-export interface MapArchetypesArgs {
+export interface DetectPatternsArgs {
   dirPath: string;
   minSimilarity?: number;
   focus?: 'interface' | 'base_class' | 'trait' | 'all';

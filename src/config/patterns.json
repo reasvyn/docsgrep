@@ -1,0 +1,66 @@
+{
+  "bugPatterns": {
+    "unhandledPromise": [
+      "\\.then\\([^)]*\\)(?!\\s*\\.catch)",
+      "new\\s+Promise\\s*\\([^)]*\\)(?!\\s*\\.catch)"
+    ],
+    "nullDereference": [
+      "\\w+\\s*\\([^)]*\\)\\s*\\.\\s*\\w+(?!\\s*\\?)"
+    ],
+    "timerLeaks": [
+      "setInterval\\s*\\([^)]*\\)(?!\\s*clearInterval)",
+      "setTimeout\\s*\\([^)]*\\)(?!\\s*clearTimeout)"
+    ],
+    "eventListenerLeaks": [
+      "addEventListener\\s*\\([^)]*\\)(?!\\s*removeEventListener)",
+      "\\.on\\s*\\([^)]*\\)(?!\\s*\\.off|\\.removeListener)"
+    ],
+    "inefficientLoops": [
+      "for\\s*\\([^;]*;\\s*[^;]*\\.length\\s*;",
+      "while\\s*\\([^}]*\\.length\\s*>"
+    ],
+    "syncFileOps": [
+      "readFileSync\\s*\\(",
+      "writeFileSync\\s*\\("
+    ],
+    "unboundedIO": [
+      "while\\s*\\([^)]*\\)\\s*\\{[^}]*read\\s*\\(",
+      "for\\s+\\w+\\s+in\\s+\\w+\\s*:[^{]*\\{[^{}]*exec\\s*\\("
+    ],
+    "todo": [
+      "\\/\\/\\s*(TODO|FIXME|HACK|XXX|OPTIMIZE|REVIEW)\\b",
+      "\\/\\*\\s*(TODO|FIXME|HACK|XXX|OPTIMIZE|REVIEW)\\b",
+      "#\\s*(TODO|FIXME|HACK|XXX|OPTIMIZE|REVIEW)\\b",
+      "--\\s*(TODO|FIXME|HACK|XXX|OPTIMIZE|REVIEW)\\b"
+    ]
+  },
+  "safeBuiltins": [
+    "Object.", "JSON.", "Math.", "Array.", "String.", "Number.",
+    "Boolean.", "RegExp.", "Date.", "Promise.", "console.", "process.",
+    "Buffer.", "globalThis.", "global.", "window.", "document.",
+    "Reflect.", "Symbol.", "Map.", "Set.", "WeakMap.", "WeakSet.",
+    "Intl.", "BigInt.", "URL.", "URLSearchParams."
+  ],
+  "safeBuiltinMethods": [
+    "filter", "map", "reduce", "forEach", "find", "findIndex",
+    "some", "every", "includes", "indexOf", "flat", "flatMap",
+    "split", "join", "trim", "slice", "splice", "concat",
+    "push", "pop", "shift", "unshift", "sort", "reverse",
+    "replace", "match", "search", "test", "exec"
+  ],
+  "smellPatterns": {
+    "deepNestingThreshold": 4,
+    "longFileLines": 400,
+    "longFunctionLines": 50,
+    "maxLineLength": 120,
+    "maxParams": 4
+  },
+  "securityPatterns": {
+    "sensitiveFiles": ["**/*.{yml,yaml,json,xml,conf,ini,env,cfg}", "**/Dockerfile*", "**/*.{sh,bash}"],
+    "owaspCategories": ["Broken Access Control", "Cryptographic Failures", "Injection", "Authentication Failures", "Security Misconfiguration", "SSRF"]
+  },
+  "docPatterns": {
+    "docExtensions": ["md", "rst", "txt"],
+    "readmePatterns": ["README*", "docs/**/*.md", "DOCUMENTATION*", "CONTRIBUTING*", "CODE_OF_CONDUCT*"]
+  }
+}

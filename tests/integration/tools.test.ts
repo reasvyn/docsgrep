@@ -48,46 +48,21 @@ The authentication system uses JWT tokens.
 ### Methods
 
 function login(username, password) {
-  // login logic
+  // Implementation
 }
 
 function logout() {
-  // logout logic
-}
-
-class AuthService {
-  constructor() {}
-}
-
-## User Management
-
-function createUser(data) {
-  // create user
+  // Implementation
 }
 `
     );
 
-    // Create another doc
-    await fs.writeFile(
-      path.join(testProjectPath, 'docs', 'related.md'),
-      `# Related Docs
-
-This document is related to authentication and user management.
-It covers topics about auth, login, and users.
-`
-    );
-
-    // Create a sample code file
+    // Create sample code file for verification
     await fs.mkdir(path.join(testProjectPath, 'src'), { recursive: true });
     await fs.writeFile(
       path.join(testProjectPath, 'src', 'auth.ts'),
-      `export function login(username: string, password: string) {
-  return { token: 'jwt-token' };
-}
-
-export function logout() {
-  return true;
-}
+      `export function login(username: string, password: string) { return true; }
+export function logout() { return; }
 `
     );
   }, 30000);
@@ -96,7 +71,6 @@ export function logout() {
     if (client) {
       await client.close();
     }
-    // Cleanup
     try {
       await fs.rm(testProjectPath, { recursive: true, force: true });
     } catch (e) {
@@ -109,23 +83,23 @@ export function logout() {
       const tools = await client.listTools();
       const toolNames = tools.tools.map((t) => t.name);
 
-      expect(toolNames).toContain('fathom_meaning');
-      expect(toolNames).toContain('tldr_docs');
-      expect(toolNames).toContain('hunt_related');
-      expect(toolNames).toContain('smell_stale');
-      expect(toolNames).toContain('sync_docs');
-      expect(toolNames).toContain('verify_truth');
-      expect(toolNames).toContain('sense_surroundings');
-      expect(toolNames).toContain('spot_delta');
-      expect(toolNames).toContain('doc_the_tools');
-      expect(toolNames).toContain('catch_fossils');
+      expect(toolNames).toContain('semantic_search');
+      expect(toolNames).toContain('summarize_doc');
+      expect(toolNames).toContain('find_related');
+      expect(toolNames).toContain('check_stale');
+      expect(toolNames).toContain('sync_documentation');
+      expect(toolNames).toContain('verify_docs');
+      expect(toolNames).toContain('get_context');
+      expect(toolNames).toContain('check_delta');
+      expect(toolNames).toContain('show_help');
+      expect(toolNames).toContain('check_artefacts');
     });
   });
 
-  describe('fathom_meaning', () => {
+  describe('semantic_search', () => {
     it('should perform semantic search', async () => {
       const result = await client.callTool({
-        name: 'fathom_meaning',
+        name: 'semantic_search',
         arguments: {
           dirPath: testProjectPath,
           query: 'authentication login',
@@ -140,7 +114,7 @@ export function logout() {
 
     it('should respect topK parameter', async () => {
       const result = await client.callTool({
-        name: 'fathom_meaning',
+        name: 'semantic_search',
         arguments: {
           dirPath: testProjectPath,
           query: 'auth',
@@ -154,7 +128,7 @@ export function logout() {
 
     it('should validate required parameters', async () => {
       const result = await client.callTool({
-        name: 'fathom_meaning',
+        name: 'semantic_search',
         arguments: {
           dirPath: testProjectPath,
         },
@@ -164,10 +138,10 @@ export function logout() {
     });
   });
 
-  describe('tldr_docs', () => {
+  describe('summarize_doc', () => {
     it('should summarize documentation', async () => {
       const result = await client.callTool({
-        name: 'tldr_docs',
+        name: 'summarize_doc',
         arguments: {
           filePath: testDocPath,
         },
@@ -181,7 +155,7 @@ export function logout() {
 
     it('should respect maxLength parameter', async () => {
       const result = await client.callTool({
-        name: 'tldr_docs',
+        name: 'summarize_doc',
         arguments: {
           filePath: testDocPath,
           maxLength: 100,
@@ -193,10 +167,10 @@ export function logout() {
     });
   });
 
-  describe('hunt_related', () => {
+  describe('find_related', () => {
     it('should find related documents', async () => {
       const result = await client.callTool({
-        name: 'hunt_related',
+        name: 'find_related',
         arguments: {
           dirPath: testProjectPath,
           topic: 'authentication',
@@ -210,7 +184,7 @@ export function logout() {
 
     it('should respect threshold parameter', async () => {
       const result = await client.callTool({
-        name: 'hunt_related',
+        name: 'find_related',
         arguments: {
           dirPath: testProjectPath,
           topic: 'authentication',
@@ -223,10 +197,10 @@ export function logout() {
     });
   });
 
-  describe('smell_stale', () => {
+  describe('check_stale', () => {
     it('should detect stale documents', async () => {
       const result = await client.callTool({
-        name: 'smell_stale',
+        name: 'check_stale',
         arguments: {
           dirPath: testProjectPath,
         },
@@ -239,7 +213,7 @@ export function logout() {
 
     it('should respect maxAgeDays parameter', async () => {
       const result = await client.callTool({
-        name: 'smell_stale',
+        name: 'check_stale',
         arguments: {
           dirPath: testProjectPath,
           maxAgeDays: 60,
@@ -251,10 +225,10 @@ export function logout() {
     });
   });
 
-  describe('sync_docs', () => {
+  describe('sync_documentation', () => {
     it('should initiate doc sync', async () => {
       const result = await client.callTool({
-        name: 'sync_docs',
+        name: 'sync_documentation',
         arguments: {
           dirPath: testProjectPath,
         },
@@ -267,7 +241,7 @@ export function logout() {
 
     it('should respect updateMode parameter', async () => {
       const result = await client.callTool({
-        name: 'sync_docs',
+        name: 'sync_documentation',
         arguments: {
           dirPath: testProjectPath,
           updateMode: 'create',
@@ -279,10 +253,10 @@ export function logout() {
     });
   });
 
-  describe('verify_truth', () => {
+  describe('verify_docs', () => {
     it('should validate documentation', async () => {
       const result = await client.callTool({
-        name: 'verify_truth',
+        name: 'verify_docs',
         arguments: {
           dirPath: testProjectPath,
           docPath: testDocPath,
@@ -295,7 +269,7 @@ export function logout() {
     });
   });
 
-  describe('verify_truth with signature validation', () => {
+  describe('verify_docs with signature validation', () => {
     it('should detect parameter count mismatch', async () => {
       const mismatchDocPath = path.join(testProjectPath, 'docs', 'mismatch.md');
       await fs.writeFile(
@@ -304,7 +278,7 @@ export function logout() {
       );
 
       const result = await client.callTool({
-        name: 'verify_truth',
+        name: 'verify_docs',
         arguments: {
           dirPath: testProjectPath,
           docPath: mismatchDocPath,
@@ -318,10 +292,10 @@ export function logout() {
     });
   });
 
-  describe('sense_surroundings', () => {
+  describe('get_context', () => {
     it('should provide context for current file', async () => {
       const result = await client.callTool({
-        name: 'sense_surroundings',
+        name: 'get_context',
         arguments: {
           dirPath: testProjectPath,
           currentFilePath: path.join(testProjectPath, 'src', 'auth.ts'),
@@ -335,7 +309,7 @@ export function logout() {
 
     it('should respect contextDepth parameter', async () => {
       const result = await client.callTool({
-        name: 'sense_surroundings',
+        name: 'get_context',
         arguments: {
           dirPath: testProjectPath,
           currentFilePath: path.join(testProjectPath, 'src', 'auth.ts'),
@@ -348,10 +322,10 @@ export function logout() {
     });
   });
 
-  describe('spot_delta', () => {
+  describe('check_delta', () => {
     it('should compare doc with code', async () => {
       const result = await client.callTool({
-        name: 'spot_delta',
+        name: 'check_delta',
         arguments: {
           dirPath: testProjectPath,
           docPath: testDocPath,
@@ -364,10 +338,10 @@ export function logout() {
     });
   });
 
-  describe('doc_the_tools', () => {
+  describe('show_help', () => {
     it('should provide help for all tools', async () => {
       const result = await client.callTool({
-        name: 'doc_the_tools',
+        name: 'show_help',
         arguments: {},
       });
 
@@ -378,20 +352,20 @@ export function logout() {
 
     it('should provide help for specific tool', async () => {
       const result = await client.callTool({
-        name: 'doc_the_tools',
+        name: 'show_help',
         arguments: {
-          toolName: 'fathom_meaning',
+          toolName: 'semantic_search',
         },
       });
 
       const data = JSON.parse((result.content as any)[0].text);
-      expect(data.tool).toBe('fathom_meaning');
+      expect(data.tool).toBe('semantic_search');
       expect(data.description).toBeDefined();
     });
 
     it('should return error for unknown tool', async () => {
       const result = await client.callTool({
-        name: 'doc_the_tools',
+        name: 'show_help',
         arguments: {
           toolName: 'nonexistent_tool',
         },
@@ -401,10 +375,10 @@ export function logout() {
     });
   });
 
-  describe('catch_fossils', () => {
-    it('should detect fossils needing updates', async () => {
+  describe('check_artefacts', () => {
+    it('should detect artefacts needing updates', async () => {
       const result = await client.callTool({
-        name: 'catch_fossils',
+        name: 'check_artefacts',
         arguments: {
           dirPath: testProjectPath,
         },
@@ -417,7 +391,7 @@ export function logout() {
 
     it('should respect priorityMode parameter', async () => {
       const result = await client.callTool({
-        name: 'catch_fossils',
+        name: 'check_artefacts',
         arguments: {
           dirPath: testProjectPath,
           priorityMode: 'recency',
@@ -429,10 +403,10 @@ export function logout() {
     });
   });
 
-  describe('grep_docs with ranking', () => {
+  describe('search_docs with ranking', () => {
     it('should return ranked results', async () => {
       const result = await client.callTool({
-        name: 'grep_docs',
+        name: 'search_docs',
         arguments: {
           dirPath: testProjectPath,
           pattern: 'authentication',

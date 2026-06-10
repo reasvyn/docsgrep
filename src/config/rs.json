@@ -1,0 +1,12 @@
+{
+  "name": "Rust",
+  "alias": "rs",
+  "extensions": ["rs", "rlib"],
+  "configFiles": ["Cargo.toml", "Cargo.lock"],
+  "commentStyle": { "single": "//", "multiStart": "/*", "multiEnd": "*/", "hashBang": false },
+  "docStyle": { "single": "///", "multiStart": "/**", "multiEnd": "*/" },
+  "packageManager": "Cargo",
+  "ecosystem": "crates.io",
+  "ignoreFiles": ["target/", "Cargo.lock"],
+  "debugPatterns": ["println!\\s*\\(", "dbg!\\s*\\(", "eprintln!\\s*\\("]
+}

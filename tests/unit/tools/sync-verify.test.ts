@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { handleSyncDocs, handleVerifyTruth, handleSpotDelta, handleCatchFossils } from '../../../src/tools/sync-verify.js';
+import { handleSyncDocumentation, handleVerifyDocs, handleCheckDelta, handleCheckArtefacts } from '../../../src/tools/sync-verify.js';
 import * as fs from 'node:fs/promises';
 import { glob } from 'glob';
 import { simpleGit } from 'simple-git';
@@ -46,16 +46,16 @@ describe('sync-verify tools', () => {
     });
   });
 
-  describe('handleSyncDocs', () => {
+  describe('handleSyncDocumentation', () => {
     it('should detect changed files using git', async () => {
-      const result = await handleSyncDocs({ dirPath: '/test' });
+      const result = await handleSyncDocumentation({ dirPath: '/test' });
       const data = JSON.parse(result.content[0].text);
       expect(data.changedFiles.length).toBeGreaterThan(0);
       expect(data.changedFiles[0]).toContain('index.ts');
     });
   });
 
-  describe('handleVerifyTruth', () => {
+  describe('handleVerifyDocs', () => {
     it('should detect signature mismatch', async () => {
       vi.mocked(fs.readFile).mockImplementation(async (p: any) => {
         if (p.toString().includes('api.md')) return 'function myMethod(param1)';
@@ -63,7 +63,7 @@ describe('sync-verify tools', () => {
       });
       vi.mocked(glob).mockResolvedValue(['src/main.ts'] as any);
 
-      const result = await handleVerifyTruth({ dirPath: '/test', docPath: 'api.md' });
+      const result = await handleVerifyDocs({ dirPath: '/test', docPath: 'api.md' });
       const data = JSON.parse(result.content[0].text);
       expect(data.issues[0].status).toBe('signature_mismatch');
     });
@@ -75,13 +75,13 @@ describe('sync-verify tools', () => {
       });
       vi.mocked(glob).mockResolvedValue(['src/main.ts'] as any);
 
-      const result = await handleVerifyTruth({ dirPath: '/test', docPath: 'api.md' });
+      const result = await handleVerifyDocs({ dirPath: '/test', docPath: 'api.md' });
       const data = JSON.parse(result.content[0].text);
       expect(data.issues[0].status).toBe('not_found');
     });
   });
 
-  describe('handleSpotDelta', () => {
+  describe('handleCheckDelta', () => {
     it('should compare documented items with implementation', async () => {
       vi.mocked(fs.readFile).mockImplementation(async (p: any) => {
         if (p.toString().includes('api.md')) return 'function myMethod()\nclass MyClass';
@@ -89,18 +89,18 @@ describe('sync-verify tools', () => {
       });
       vi.mocked(glob).mockResolvedValue(['src/main.ts'] as any);
 
-      const result = await handleSpotDelta({ dirPath: '/test', docPath: 'api.md' });
+      const result = await handleCheckDelta({ dirPath: '/test', docPath: 'api.md' });
       const data = JSON.parse(result.content[0].text);
       expect(data.deltas.find((d: any) => d.item === 'myMethod').codeStatus).toContain('found');
       expect(data.deltas.find((d: any) => d.item === 'MyClass').codeStatus).toContain('NOT FOUND');
     });
   });
 
-  describe('handleCatchFossils', () => {
+  describe('handleCheckArtefacts', () => {
     it('should identify docs needing updates based on code changes', async () => {
       vi.mocked(glob).mockResolvedValue(['docs/index.md'] as any);
       
-      const result = await handleCatchFossils({ dirPath: '/test' });
+      const result = await handleCheckArtefacts({ dirPath: '/test' });
       const data = JSON.parse(result.content[0].text);
       expect(data.fossils.length).toBeGreaterThan(0);
       expect(data.fossils[0].file).toContain('index.md');

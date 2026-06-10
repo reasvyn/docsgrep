@@ -1,18 +1,18 @@
 /**
- * Archetype tool handlers: map_archetypes
+ * Archetype tool handlers: detect_patterns
  */
 import { 
   type McpToolResponse, 
-  type MapArchetypesArgs 
+  type DetectPatternsArgs 
 } from "../types/tools.js";
 import { validateDirPath, validateStringParam } from "../utils/validation.js";
 import { ArchetypeEngine } from "../utils/archetype-engine.js";
 import { BaseTool } from "./base.js";
 
-export class MapArchetypesTool extends BaseTool<MapArchetypesArgs> {
-  name = "map_archetypes";
+export class DetectPatternsTool extends BaseTool<DetectPatternsArgs> {
+  name = "detect_patterns";
 
-  async run(args: MapArchetypesArgs): Promise<McpToolResponse> {
+  async run(args: DetectPatternsArgs): Promise<McpToolResponse> {
     const { dirPath: rawPath, minSimilarity, includePath, excludePath } = args;
     const dirPath = validateDirPath(validateStringParam(rawPath, "dirPath"));
     
@@ -34,6 +34,6 @@ export class MapArchetypesTool extends BaseTool<MapArchetypesArgs> {
   }
 }
 
-export async function handleMapArchetypesTool(args: MapArchetypesArgs): Promise<McpToolResponse> {
-  return await new MapArchetypesTool().execute(args);
+export async function handleDetectPatternsTool(args: DetectPatternsArgs): Promise<McpToolResponse> {
+  return await new DetectPatternsTool().execute(args); // docsgrep-ignore
 }

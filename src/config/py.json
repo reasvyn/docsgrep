@@ -1,0 +1,12 @@
+{
+  "name": "Python",
+  "alias": "py",
+  "extensions": ["py", "pyw", "pyx", "pxd", "pxi"],
+  "configFiles": ["requirements.txt", "pyproject.toml", "setup.py", "Pipfile", "Pipfile.lock"],
+  "commentStyle": { "single": "#", "multiStart": null, "multiEnd": null, "hashBang": true },
+  "docStyle": { "single": null, "multiStart": "\"\"\"", "multiEnd": "\"\"\"" },
+  "packageManager": "pip / pipenv / poetry / pdm",
+  "ecosystem": "PyPI",
+  "ignoreFiles": ["__pycache__/", "*.pyc", "*.pyo", ".venv/", "venv/", "*.egg-info/"],
+  "debugPatterns": ["print\\s*\\(", "pdb\\.set_trace\\s*\\("]
+}

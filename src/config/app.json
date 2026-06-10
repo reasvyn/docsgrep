@@ -1,0 +1,47 @@
+{
+  "name": "docsgrep",
+  "version": "0.8.0",
+  "description": "MCP Server to explore local and remote documentation",
+  "severity": {
+    "labels": ["critical", "high", "medium", "low"],
+    "icons": { "critical": "🔴", "high": "🟠", "medium": "🟡", "low": "🔵" },
+    "weights": { "critical": 20, "high": 10, "medium": 5, "low": 0 }
+  },
+  "formatting": {
+    "ruleChar": "=",
+    "ruleLength": 60,
+    "maxIssuesDisplay": 50
+  },
+  "limits": {
+    "maxRetryAttempts": 3,
+    "maxFileSizeRead": 500000,
+    "gitTimeoutMs": 60000,
+    "maxCacheSizeMb": 1000,
+    "maxScanFiles": 50,
+    "maxIssuesPerFile": 20,
+    "maxIssuesReport": 50,
+    "maxContextLines": 5,
+    "searchTopK": 5,
+    "staleMaxAgeDays": 30,
+    "cacheMaxAgeDays": 7,
+    "similarityThreshold": 0.7,
+    "minSimilarityArchetype": 0.8
+  },
+  "ignoreMarkers": ["docsgrep-ignore", "nolint", "noscan", "ignore-issue"],
+  "globalIgnorePatterns": [
+    "**/.git/**",
+    "**/.cache/**",
+    "**/.temp/**",
+    "**/tmp/**",
+    "**/*.test.*",
+    "**/*.spec.*",
+    "**/test/**",
+    "**/tests/**",
+    "**/__tests__/**",
+    "**/coverage/**",
+    "**/.nyc_output/**",
+    "**/*.map",
+    "**/*.log",
+    "**/*.sqlite"
+  ]
+}

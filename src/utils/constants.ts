@@ -1,40 +1,24 @@
-/**
- * Constants used throughout the application
- */
-export const MAX_RETRY_ATTEMPTS = 3;
-export const MAX_FILE_SIZE_TECH = 50000;
-export const MAX_FILE_SIZE_CONVENTIONS = 100000;
-export const MAX_FILE_SIZE_SAMPLE = 20000;
-export const MAX_FILE_SIZE_READ = 500000; // 500KB for read_doc_file
-export const GIT_TIMEOUT_MS = 60000;
-export const MAX_CACHE_SIZE_MB = 1000; // 1GB max cache size
+import { loadConfig } from "./config.js";
+import { SupportedLanguage } from "./supported-language.js";
 
-/**
- * Standard ignore patterns for documentation and code analysis
- * Filters out common OSS noise: build artifacts, lockfiles, and machine-generated files.
- */
+const appConfig = loadConfig<any>("app");
+
+export const MAX_RETRY_ATTEMPTS = appConfig.limits.maxRetryAttempts;
+export const MAX_FILE_SIZE_READ = appConfig.limits.maxFileSizeRead;
+export const GIT_TIMEOUT_MS = appConfig.limits.gitTimeoutMs;
+export const MAX_CACHE_SIZE_MB = appConfig.limits.maxCacheSizeMb;
+export const MAX_SCAN_FILES = appConfig.limits.maxScanFiles;
+export const MAX_CONTEXT_LINES = appConfig.limits.maxContextLines;
+export const SEARCH_TOP_K = appConfig.limits.searchTopK;
+export const STALE_MAX_AGE_DAYS = appConfig.limits.staleMaxAgeDays;
+export const CACHE_MAX_AGE_DAYS = appConfig.limits.cacheMaxAgeDays;
+export const SIMILARITY_THRESHOLD = appConfig.limits.similarityThreshold;
+export const MIN_SIMILARITY_ARCHETYPE = appConfig.limits.minSimilarityArchetype;
+export const IGNORE_MARKERS = appConfig.ignoreMarkers;
+
 export const DEFAULT_IGNORE_PATTERNS = [
-  "**/node_modules/**",
-  "**/vendor/**",
-  "**/.git/**",
-  "**/dist/**",
-  "**/build/**",
-  "**/out/**",
-  "**/target/**", // Rust/Java
-  "**/bin/**",
-  "**/obj/**",
-  "**/coverage/**",
-  "**/.nyc_output/**",
-  "**/.next/**",
-  "**/.nuxt/**",
-  "**/.cache/**",
-  "**/.temp/**",
-  "**/tmp/**",
-  "**/*.test.*",
-  "**/*.spec.*",
-  "**/test/**",
-  "**/tests/**",
-  "**/__tests__/**",
+  ...appConfig.globalIgnorePatterns,
+  ...SupportedLanguage.all().flatMap(l => l.ignoreFiles.map(f => `**/${f}`)),
   "**/package-lock.json",
   "**/yarn.lock",
   "**/pnpm-lock.yaml",
@@ -42,18 +26,4 @@ export const DEFAULT_IGNORE_PATTERNS = [
   "**/Cargo.lock",
   "**/Gemfile.lock",
   "**/mix.lock",
-  "**/*.map",
-  "**/*.log",
-  "**/*.sqlite",
-  "**/*.pyc",
-  "**/__pycache__/**",
-];
-
-/**
- * Patterns for sensitive files that should be scanned carefully
- */
-export const SENSITIVE_FILES_PATTERNS = [
-  "**/*.{env,example,sample,conf,ini,cfg,yaml,yml,json,xml}",
-  "**/Dockerfile*",
-  "**/*.{sh,bash}",
 ];

@@ -1,4 +1,4 @@
-# Contributing to @anovise/docsgrep
+# Contributing to docsgrep
 
 Thank you for contributing to **docsgrep**! We are building the ultimate documentation and code quality suite for the AI-Native engineering era.
 

@@ -1,104 +1,89 @@
-/**
- * Bug detection patterns and configurations
- */
+import { SupportedLanguage } from "../supported-language.js";
+import { loadConfig } from "../config.js";
 
-export const RUNTIME_PATTERNS = {
+const { safeBuiltins, safeBuiltinMethods: safeBuiltinMethodNames, bugPatterns } = loadConfig("patterns");
+
+const SAFE_BUILTINS = safeBuiltins;
+const SAFE_BUILTIN_METHODS = new Set(safeBuiltinMethodNames);
+
+function isSafeCall(sanitized: string, matchIndex: number): boolean {
+  const before = sanitized.substring(0, matchIndex);
+  const fromMatch = sanitized.substring(matchIndex);
+  
+  for (const prefix of SAFE_BUILTINS) {
+    if (before.endsWith(prefix)) return true;
+    if (fromMatch.includes(prefix)) return true;
+  }
+  
+  if (before.endsWith('.')) return true;
+  
+  const funcName = fromMatch.match(/^\w+/)?.[0];
+  if (funcName && SAFE_BUILTIN_METHODS.has(funcName)) return true;
+  
+  return false;
+}
+
+function compile(name: string): RegExp[] {
+  return (bugPatterns[name] || []).map((p: string) => new RegExp(p, 'g'));
+}
+
+const RUNTIME_PATTERNS = {
   'Unhandled Promise Rejection': {
-    patterns: [
-      /\.then\([^)]*\)(?!\s*\.catch)/g,
-      /await\s+[^;]+(?!\s*catch)/g,
-      /new\s+Promise\s*\([^)]*\)(?!\s*\.catch)/g,
-    ],
+    patterns: compile('unhandledPromise'),
     description: 'Promises or async operations without proper error handling',
   },
   'Null Dereference': {
-    patterns: [
-      /\w+\.\w+(?!\s*(?:&&|\?\.|\?\?:|\|\|))/g,
-      /!\s*\w+\.\w+/g,
-    ],
-    description: 'Potential null/undefined dereference',
-  },
-  'Uninitialized Variables': {
-    patterns: [
-      /let\s+\w+\s*;(?!=)/g,
-      /const\s+\w+\s*;(?!=)/g,
-    ],
-    description: 'Variables declared but not initialized',
-  },
-  'Type Coercion': {
-    patterns: [
-      /==\s*(?!==)/g,
-      /!=\s*(?!==)/g,
-    ],
-    description: 'Loose equality/inequality issues',
+    patterns: compile('nullDereference'),
+    description: 'Potential null/undefined dereference on unchecked call result',
   },
 };
 
-export const RACE_PATTERNS = {
-  'Unsynchronized State': {
-    patterns: [
-      /(let|var|const)\s+(\w+)\s*=.*;(?=.*\2\s*\+\+)/gs,
-      /(let|var|const)\s+(\w+)\s*=.*;(?=.*\2\s*--)/gs,
-      /this\.\w+\s*=\s*.*;(?=.*this\.\w+)/gs,
-    ],
-    description: 'Shared state modifications without synchronization',
-  },
-  'Missing Async/Await': {
-    patterns: [
-      /async\s+function[^{]*\{[^}]*then\s*\(/g,
-      /new\s+Promise[^}]*\}\s*(?!await)/g,
-    ],
-    description: 'Potential race condition from mixing async patterns',
-  },
-};
+const RACE_PATTERNS = {};
 
-export const MEMORY_PATTERNS = {
+const MEMORY_PATTERNS = {
   'Event Listener Leaks': {
-    patterns: [
-      /addEventListener\s*\([^)]*\)(?!\s*removeEventListener)/g,
-      /\.on\s*\([^)]*\)(?!\s*\.off|\.removeListener)/g,
-    ],
+    patterns: compile('eventListenerLeaks'),
     description: 'Event listeners added without corresponding removal',
   },
   'Timer Leaks': {
-    patterns: [
-      /setInterval\s*\([^)]*\)(?!\s*clearInterval)/g,
-      /setTimeout\s*\([^)]*\)(?!\s*clearTimeout)/g,
-    ],
+    patterns: compile('timerLeaks'),
     description: 'Intervals or timers set without cleanup',
   },
 };
 
-export const PERFORMANCE_PATTERNS = {
+const PERFORMANCE_PATTERNS = {
   'Inefficient Loops': {
-    patterns: [
-      /for\s*\([^;]*;\s*[^;]*\.length\s*;/g,
-      /while\s*\([^}]*\.length\s*>/g,
-    ],
+    patterns: compile('inefficientLoops'),
     description: 'Loop conditions recalculating .length on each iteration',
   },
   'Sync File Ops': {
-    patterns: [
-      /readFileSync\s*\(/g,
-      /writeFileSync\s*\(/g,
-    ],
-    description: 'Synchronous operations may block event loop',
+    patterns: compile('syncFileOps'),
+    description: 'Synchronous operations blocking the event loop',
+  },
+  'Unbounded I/O': {
+    patterns: compile('unboundedIO'),
+    description: 'I/O operations inside unbounded loops',
   },
 };
 
-export const UNRESOLVED_PATTERNS = {
+const UNRESOLVED_PATTERNS = {
   'TODO/FIXME': {
-    patterns: [
-      /\/\/\s*(TODO|FIXME|HACK|XXX)\b/gi,
-      /\/\*\s*(TODO|FIXME|HACK|XXX)\b/gi,
-    ],
+    patterns: compile('todo'),
     description: 'Unresolved technical debt',
   },
   'Debug Statements': {
-    patterns: [
-      /console\.(log|debug)\s*\(/g,
-      /debugger\s*;/g,
-    ],
+    patterns: SupportedLanguage.all().flatMap(l =>
+      l.debugPatterns.map(p => new RegExp(p, 'g'))
+    ),
     description: 'Debug statements left in code',
   },
+};
+
+export {
+  RUNTIME_PATTERNS,
+  RACE_PATTERNS,
+  MEMORY_PATTERNS,
+  PERFORMANCE_PATTERNS,
+  UNRESOLVED_PATTERNS,
+  isSafeCall,
 };

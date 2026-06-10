@@ -32,6 +32,19 @@ export interface AuditReport {
     directories: string[];
     entryPoints: string[];
   };
+  projectReadiness: {
+    hasLicense: boolean;
+    hasEditorconfig: boolean;
+    hasGitignore: boolean;
+    hasEnvExample: boolean;
+    gitignoreCoversBasics: boolean;
+    detectedType: string;
+    hasPackageMeta: boolean;
+    packageDescription: string;
+    packageAuthor: string;
+    packageLicense: string;
+    packageHomepage: string;
+  };
   detectedConventions: {
     namingStyle: string;
     indentation: string;

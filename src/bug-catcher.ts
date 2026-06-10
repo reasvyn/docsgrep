@@ -5,6 +5,7 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { FileScanner } from "./tools/base.js";
 import { BugAnalyzer } from "./utils/bugs/analyzer.js";
+import { SupportedLanguage } from "./utils/supported-language.js";
 
 export interface BugIssue {
   file: string; line?: number;
@@ -31,14 +32,16 @@ const FILE_SIZE_LIMIT = 500000;
  * Catch bugs and runtime errors in the project.
  */
 export async function catchBugs(dirPath: string, includePath?: string[], excludePath?: string[]): Promise<BugReport> {
+  const allExt = SupportedLanguage.all().flatMap(l => l.extensions).join(",");
   const matches = await FileScanner.findFiles({ dirPath, includePath, excludePath }, [
-    '**/*.{js,ts,jsx,tsx,py,go,rs,php,java,rb,cs,cpp,c,swift,dart,kt,scala,groovy,ex,erl,clj}'
+    `**/*.{${allExt}}`
   ]);
 
   const allIssues: BugIssue[] = [];
   for (const match of matches.slice(0, 50)) {
     const issues = await analyzeFile(dirPath, match);
     allIssues.push(...issues);
+    if (allIssues.length >= 100) break;
   }
 
   const score = calculateScore(allIssues, matches.length);

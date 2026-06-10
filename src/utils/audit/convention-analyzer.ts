@@ -5,8 +5,8 @@
 export class ConventionAnalyzer {
   static detectNaming(files: any[]): string {
     const scores: Record<string, number> = { camelCase: 0, snake_case: 0, PascalCase: 0, UPPER_SNAKE: 0 };
-    for (const f of files) {
-      const ids = f.content.match(/\b[a-zA-Z_]\w*\b/g) || [];
+    for (const file of files) {
+      const ids = file.content.match(/\b[a-zA-Z_]\w*\b/g) || [];
       for (const id of ids) {
         if (/^[a-z]+(?:[A-Z][a-z]*)*$/.test(id)) scores.camelCase++;
         if (/^[a-z]+(?:_[a-z]+)*$/.test(id)) scores.snake_case++;
@@ -24,9 +24,9 @@ export class ConventionAnalyzer {
   }
 
   static detectQuote(content: string): string {
-    const s = (content.match(/'/g) || []).length;
-    const d = (content.match(/"/g) || []).length;
-    return d > s ? 'double' : 'single';
+    const single = (content.match(/'/g) || []).length;
+    const double = (content.match(/"/g) || []).length;
+    return double > single ? 'double' : 'single';
   }
 
   static calculateAvgLineLength(content: string): number {

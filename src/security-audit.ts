@@ -5,6 +5,7 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { FileScanner } from "./tools/base.js";
+import { SupportedLanguage } from "./utils/supported-language.js";
 import { OwaspChecker } from "./utils/security/owasp-checker.js";
 import { SecretScanner } from "./utils/security/secret-scanner.js";
 import { PrivacyAnalyzer } from "./utils/security/privacy-analyzer.js";
@@ -62,8 +63,9 @@ export async function performSecurityAudit(
 }
 
 async function findSourceFiles(dirPath: string, includePath?: string[], excludePath?: string[]) {
+  const allExt = SupportedLanguage.all().flatMap(l => l.extensions).join(",");
   return FileScanner.findFiles({ dirPath, includePath, excludePath }, [
-    '**/*.{js,ts,jsx,tsx,py,go,rs,rb,java,cpp,c,cs,php,swift,dart,kt,scala,groovy,ex,erl,clj}',
+    `**/*.{${allExt}}`,
     '**/*.{yml,yaml,json,xml,conf,ini,env,cfg}',
     '**/Dockerfile*',
     '**/*.{sh,bash}',

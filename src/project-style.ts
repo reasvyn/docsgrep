@@ -3,6 +3,7 @@
 
 import * as path from 'node:path';
 import { getIgnorePatterns } from './utils/file.js';
+import { SupportedLanguage } from './utils/supported-language.js';
 
 export interface ProjectStyleReport {
   conventions: {
@@ -82,12 +83,13 @@ export async function sampleCodebasePatterns(dirPath: string, excludePath?: stri
     const crypto = await import('node:crypto');
     const ignorePatterns = await getIgnorePatterns(dirPath);
 
+    const allExt = SupportedLanguage.all().flatMap(l => l.extensions).join(",");
     const sourcePatterns = [
-      "src/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
-      "app/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
-      "lib/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
-      "internal/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
-      "pkg/**/*.{js,ts,jsx,tsx,php,go,rs,py,rb,java,cpp,c,cs,swift,dart,ex}",
+      `src/**/*.{${allExt}}`,
+      `app/**/*.{${allExt}}`,
+      `lib/**/*.{${allExt}}`,
+      `internal/**/*.{${allExt}}`,
+      `pkg/**/*.{${allExt}}`,
     ];
 
     const foundFiles = await glob(sourcePatterns, {
@@ -151,7 +153,7 @@ export function detectStyleFromCode(files: Array<{ path: string; content: string
   let singleLineComments = 0;
   let multiLineComments = 0;
   let totalLines = 0;
-  let totalLength = 0;
+  let totalLength = 0; // docsgrep-ignore
 
   for (const file of files) {
     const lines = file.content.split('\n');

@@ -14,8 +14,8 @@ import { CliFormatter } from "./utils/formatter.js";
 // Types
 import {
   type McpToolResponse,
-  type LintCodeArgs,
-  type GuardSecurityArgs,
+  type AnalyzeCodeArgs,
+  type AuditSecurityArgs,
   type CatchBugsArgs,
 } from "./types/tools.js";
 
@@ -43,9 +43,9 @@ function wrap(data: any): McpToolResponse {
   };
 }
 
-class LintCodeTool extends BaseTool<LintCodeArgs> {
-  protected name = "lint_code";
-  protected async run(args: LintCodeArgs): Promise<McpToolResponse> {
+class AnalyzeCodeTool extends BaseTool<AnalyzeCodeArgs> {
+  protected name = "analyze_code";
+  protected async run(args: AnalyzeCodeArgs): Promise<McpToolResponse> {
     const { dir, inc } = this.getStandardArgs(args);
     const caps = await checkCapabilities();
     const report: AuditReport = await performAudit(dir, inc, args.excludePath);
@@ -54,9 +54,9 @@ class LintCodeTool extends BaseTool<LintCodeArgs> {
   }
 }
 
-class GuardSecurityTool extends BaseTool<GuardSecurityArgs> {
-  protected name = "guard_security";
-  protected async run(args: GuardSecurityArgs): Promise<McpToolResponse> {
+class AuditSecurityTool extends BaseTool<AuditSecurityArgs> {
+  protected name = "audit_security";
+  protected async run(args: AuditSecurityArgs): Promise<McpToolResponse> {
     const { dir, inc } = this.getStandardArgs(args);
     const caps = await checkCapabilities();
     const report: SecurityAuditReport = await performSecurityAudit(dir, inc, args.excludePath);
@@ -121,32 +121,33 @@ async function runCli(cliArgs: string[]) {
     args.dirPath = process.cwd();
   }
 
-  console.log(`\n🚀 docsgrep: Running tool '${toolName}'...`);
+  console.log(`\n🚀 docsgrep: Running tool '${toolName}'...`); // docsgrep-ignore
 
   try {
     const response = await ToolRegistry.execute(toolName, args);
     handleCliResponse(response, toolName, format);
   } catch (err: any) {
-    console.error(`\n❌ Fatal Error: ${err.message}`);
+    console.error(`\n❌ Fatal Error: ${err.message}`); // docsgrep-ignore
     process.exit(1);
   }
 }
 
 function displayCliHelp(tools: string[]) {
-  console.log("\n📖 docsgrep CLI - Clean Code & Documentation Assistant");
-  console.log("Usage: docsgrep run {tool_name} [--param value] [--format text|json]");
-  console.log("\nOptions:");
-  console.log("  --format   Output format: 'text' (default) or 'json'");
-  console.log("\nAvailable tools:");
-  tools.sort().forEach(t => console.log(`  - ${t}`));
-  console.log("\nExample: npm run lint OR npx docsgrep run lint_code --dirPath ./src --format text");
+  console.log("\n📖 docsgrep CLI - Clean Code & Documentation Assistant"); // docsgrep-ignore
+  console.log("Usage: docsgrep run {tool_name} [--param value] [--format text|json]"); // docsgrep-ignore
+  console.log("\nOptions:"); // docsgrep-ignore
+  console.log("  --format   Output format: 'text' (default) or 'json'"); // docsgrep-ignore
+  console.log("\nAvailable tools:"); // docsgrep-ignore
+  tools.sort().forEach(t => console.log(`  - ${t}`)); // docsgrep-ignore
+  console.log("\nExample: npm run lint OR npx docsgrep run analyze_code --dirPath ./src --format text"); // docsgrep-ignore
 }
 
 function parseCliArgs(cliArgs: string[]) {
   const toolArgs: any = {};
   let fmt = "text";
 
-  for (let i = 0; i < cliArgs.length; i++) {
+  const len = cliArgs.length;
+  for (let i = 0; i < len; i++) {
     const arg = cliArgs[i];
     if (!arg.startsWith("--")) continue;
 
@@ -177,7 +178,7 @@ function parseVal(val: string): any {
 
 function handleCliResponse(res: McpToolResponse, tool: string, fmt: string) {
   if (res.isError) {
-    console.error(`\n❌ Error:`, res.content[0].text);
+    console.error(`\n❌ Error:`, res.content[0].text); // docsgrep-ignore
     process.exit(1);
   }
 
@@ -185,15 +186,15 @@ function handleCliResponse(res: McpToolResponse, tool: string, fmt: string) {
   if (fmt === "json") {
     outJson(text);
   } else {
-    console.log(CliFormatter.format(text, tool));
+    console.log(CliFormatter.format(text, tool)); // docsgrep-ignore
   }
 }
 
 function outJson(text: string) {
   try {
-    console.log(JSON.stringify(JSON.parse(text), null, 2));
+    console.log(JSON.stringify(JSON.parse(text), null, 2)); // docsgrep-ignore
   } catch {
-    console.log(text);
+    console.log(text); // docsgrep-ignore
   }
 }
 
@@ -205,8 +206,8 @@ async function run() {
   const args = process.argv.slice(2);
   
   ToolRegistry.initialize({
-    lint_code: (a) => new LintCodeTool().execute(a),
-    guard_security: (a) => new GuardSecurityTool().execute(a),
+    analyze_code: (a) => new AnalyzeCodeTool().execute(a),
+    audit_security: (a) => new AuditSecurityTool().execute(a),
     catch_bugs: (a) => new CatchBugsTool().execute(a),
   });
 

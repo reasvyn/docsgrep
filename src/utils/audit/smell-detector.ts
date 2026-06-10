@@ -33,7 +33,8 @@ export class SmellDetector {
 
   private static checkNesting(sanLines: string[], origLines: string[], file: string): CodeIssue[] {
     let max = 0, current = 0;
-    for (let i = 0; i < sanLines.length; i++) {
+    const numLines = sanLines.length;
+    for (let i = 0; i < numLines; i++) {
       if (CodeSanitizer.isIgnored(origLines[i])) continue;
       current += (sanLines[i].match(/\{/g) || []).length;
       if (current > max) max = current;
@@ -50,7 +51,8 @@ export class SmellDetector {
   private static checkComplexity(sanLines: string[], origLines: string[], file: string): CodeIssue[] {
     let total = 0;
     const branchRegex = /\b(if|else if|case|for|while|catch|&&|\|\|)\b/g;
-    for (let i = 0; i < sanLines.length; i++) {
+    const numLines = sanLines.length;
+    for (let i = 0; i < numLines; i++) {
       if (CodeSanitizer.isIgnored(origLines[i])) continue;
       const matches = sanLines[i].match(branchRegex) || [];
       total += matches.length;

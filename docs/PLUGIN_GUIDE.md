@@ -60,7 +60,7 @@ Docsgrep looks for plugins in two ways:
 
 ## Example Use Cases
 -   `docsgrep-plugin-laravel`: Adds tools to check Eloquent relationships or route definitions.
--   `docsgrep-plugin-prettier`: Integrates Prettier checks into the `lint_code` flow or as standalone tool.
+-   `docsgrep-plugin-prettier`: Integrates Prettier checks into the `analyze_code` flow or as standalone tool.
 -   `docsgrep-plugin-nextjs`: Validates app directory structure or server component usage.
 
 ## Best Practices

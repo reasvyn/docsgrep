@@ -1,5 +1,5 @@
 /**
- * Workspace tools: setup_camp, purge_cache
+ * Workspace tools: init_workspace, clear_cache
  */
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import * as fs from "node:fs/promises";
@@ -12,16 +12,16 @@ import { getCacheSize, cleanupCache } from "../utils/file.js";
 import { MAX_CACHE_SIZE_MB } from "../utils/constants.js";
 import {
   type McpToolResponse,
-  type SetupCampArgs,
-  type PurgeCacheArgs,
+  type InitWorkspaceArgs,
+  type ClearCacheArgs,
 } from "../types/tools.js";
 
 export function registerWorkspaceTools(server: Server): void {
   // Tools are registered in the main ListTools handler
 }
 
-export async function handleSetupCamp(
-  args: SetupCampArgs
+export async function handleInitWorkspace(
+  args: InitWorkspaceArgs
 ): Promise<McpToolResponse> {
   const { projectPath: rawPath } = args;
 
@@ -114,8 +114,8 @@ export async function handleSetupCamp(
   }
 }
 
-export async function handlePurgeCache(
-  args: PurgeCacheArgs
+export async function handleClearCache(
+  args: ClearCacheArgs
 ): Promise<McpToolResponse> {
   const { localProjectPath: rawPath, maxAgeDays } = args;
 

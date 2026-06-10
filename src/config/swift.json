@@ -1,0 +1,12 @@
+{
+  "name": "Swift",
+  "alias": "swift",
+  "extensions": ["swift"],
+  "configFiles": ["Package.swift", "*.xcodeproj", "*.xcworkspace"],
+  "commentStyle": { "single": "//", "multiStart": "/*", "multiEnd": "*/", "hashBang": false },
+  "docStyle": { "single": "///", "multiStart": "/**", "multiEnd": "*/" },
+  "packageManager": "Swift Package Manager",
+  "ecosystem": "Swift PM / CocoaPods",
+  "ignoreFiles": [".build/", "DerivedData/", "Pods/"],
+  "debugPatterns": ["print\\s*\\(", "NSLog\\s*\\(", "debugPrint\\s*\\("]
+}

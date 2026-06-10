@@ -38,21 +38,21 @@ describe('MCP Server Integration', () => {
     const tools = await client.listTools();
     expect(tools.tools).toBeDefined();
     expect(tools.tools.length).toBeGreaterThan(0);
-    expect(tools.tools.some(t => t.name === 'setup_camp')).toBe(true);
-    expect(tools.tools.some(t => t.name === 'purge_cache')).toBe(true);
+    expect(tools.tools.some(t => t.name === 'init_workspace')).toBe(true);
+    expect(tools.tools.some(t => t.name === 'clear_cache')).toBe(true);
   });
 
-  it('should validate setup_camp with invalid path', async () => {
+  it('should validate init_workspace with invalid path', async () => {
     const result = await client.callTool({
-      name: 'setup_camp',
+      name: 'init_workspace',
       arguments: { projectPath: '' },
     });
     expect((result as any).isError).toBe(true);
   });
 
-  it('should validate peek_file with path traversal', async () => {
+  it('should validate read_file with path traversal', async () => {
     const result = await client.callTool({
-      name: 'peek_file',
+      name: 'read_file',
       arguments: { filePath: '../../etc/passwd' },
     });
     expect((result as any).isError).toBe(true);

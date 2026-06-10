@@ -1,5 +1,5 @@
 {
-  "name": "@anovise/docsgrep",
+  "name": "docsgrep",
   "version": "0.8.0",
   "description": "MCP Server to explore local and remote documentation",
   "type": "module",
@@ -14,12 +14,12 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
-    "lint": "node ./build/index.js run lint_code",
-    "audit": "node ./build/index.js run guard_security",
+    "lint": "node ./build/index.js run analyze_code",
+    "audit": "node ./build/index.js run audit_security",
     "bugs": "node ./build/index.js run catch_bugs",
-    "docs:check": "node ./build/index.js run gauge_docs",
-    "docs:stale": "node ./build/index.js run smell_stale",
-    "release": "node scripts/publish-dual.js"
+    "docs:check": "node ./build/index.js run measure_coverage",
+    "docs:stale": "node ./build/index.js run check_stale",
+    "release": "node scripts/publish.js"
   },
   "keywords": [
     "mcp",
@@ -27,7 +27,7 @@
     "docs",
     "documentation"
   ],
-  "author": "Reasvyn <reasvyn@gmail.com>",
+  "author": "Reas Vyn <reasvyn@gmail.com>",
   "license": "MIT",
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.29.0",

@@ -1,0 +1,12 @@
+{
+  "name": "Go",
+  "alias": "go",
+  "extensions": ["go"],
+  "configFiles": ["go.mod", "go.sum"],
+  "commentStyle": { "single": "//", "multiStart": "/*", "multiEnd": "*/", "hashBang": false },
+  "docStyle": { "single": "//", "multiStart": null, "multiEnd": null },
+  "packageManager": "Go Modules",
+  "ecosystem": "pkg.go.dev",
+  "ignoreFiles": ["vendor/", "*.test"],
+  "debugPatterns": ["fmt\\.Print", "log\\.Print"]
+}

@@ -20,7 +20,7 @@ interface PackageJson {
 let pkg: PackageJson;
 
 try {
-  pkg = JSON.parse(readFileSync(pkgPath, "utf-8"));
+  pkg = JSON.parse(readFileSync(pkgPath, "utf-8")); // docsgrep-ignore (startup only)
 } catch (error) {
   // Fallback if package.json cannot be read (e.g. in some runtime environments)
   pkg = {

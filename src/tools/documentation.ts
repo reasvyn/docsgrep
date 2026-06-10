@@ -1,5 +1,5 @@
 /**
- * Documentation tools: hunt_docs, peek_file, grep_docs, fathom_meaning, tldr_docs, hunt_related, smell_stale, sense_surroundings
+ * Documentation tools: find_docs, read_file, search_docs, semantic_search, summarize_doc, find_related, check_stale, get_context
  */
 import { glob } from "glob";
 import { getIgnorePatterns } from "../utils/file.js";
@@ -16,23 +16,24 @@ import { MAX_FILE_SIZE_READ } from "../utils/constants.js";
 import { logger } from "../utils/logger.js";
 import {
   type McpToolResponse,
-  type HuntDocsArgs,
-  type PeekFileArgs,
-  type GrepDocsArgs,
-  type FathomMeaningArgs,
-  type TldrDocsArgs,
-  type HuntRelatedArgs,
-  type SmellStaleArgs,
-  type SenseSurroundingsArgs,
-  type GaugeDocsArgs,
+  type FindDocsArgs,
+  type ReadFileArgs,
+  type SearchDocsArgs,
+  type SemanticSearchArgs,
+  type SummarizeDocArgs,
+  type FindRelatedArgs,
+  type CheckStaleArgs,
+  type GetContextArgs,
+  type MeasureCoverageArgs,
 } from "../types/tools.js";
 
 import { BaseTool, FileScanner } from "./base.js";
+import { SupportedLanguage } from "../utils/supported-language.js";
 
-class HuntDocsTool extends BaseTool<HuntDocsArgs> {
-  protected name = "hunt_docs";
+class FindDocsTool extends BaseTool<FindDocsArgs> {
+  protected name = "find_docs";
 
-  protected async run(args: HuntDocsArgs): Promise<McpToolResponse> {
+  protected async run(args: FindDocsArgs): Promise<McpToolResponse> {
     const dirPath = validateDirPath(validateStringParam(args.dirPath, "dirPath"));
     const files = await findDocsInDir(dirPath, args.includePath, args.excludePath);
     return {
@@ -53,8 +54,8 @@ class HuntDocsTool extends BaseTool<HuntDocsArgs> {
   }
 }
 
-export async function handleHuntDocs(args: HuntDocsArgs): Promise<McpToolResponse> {
-  return new HuntDocsTool().execute(args);
+export async function handleFindDocs(args: FindDocsArgs): Promise<McpToolResponse> {
+  return new FindDocsTool().execute(args); // docsgrep-ignore
 }
 
 // Helper function to find docs in a given directory (language-agnostic, all .md files)
@@ -92,8 +93,8 @@ function getMatchPrecisionScore(line: string, searchRegex: RegExp): number {
   }
 }
 
-export async function handlePeekFile(
-  args: PeekFileArgs
+export async function handleReadFile(
+  args: ReadFileArgs
 ): Promise<McpToolResponse> {
   const { filePath } = args;
 
@@ -158,8 +159,8 @@ export async function handlePeekFile(
   }
 }
 
-export async function handleGrepDocs(
-  args: GrepDocsArgs
+export async function handleSearchDocs(
+  args: SearchDocsArgs
 ): Promise<McpToolResponse> {
   const { dirPath: rawPath, pattern, filePattern, contextLines } = args;
 
@@ -202,8 +203,8 @@ export async function handleGrepDocs(
         try {
           const content = await fs.readFile(file, "utf-8");
           const lines = content.split("\n");
-
-          for (let i = 0; i < lines.length; i++) {
+          const numLines = lines.length;
+          for (let i = 0; i < numLines; i++) {
             const lineText = lines[i];
             if (searchRegex.test(lineText)) {
               const lineTypeScore = getLineTypeScore(lineText);
@@ -275,8 +276,8 @@ export async function handleGrepDocs(
   }
 }
 
-export async function handleFathomMeaning(
-  args: FathomMeaningArgs
+export async function handleSemanticSearch(
+  args: SemanticSearchArgs
 ): Promise<McpToolResponse> {
   const { dirPath: rawPath, query, topK } = args;
 
@@ -379,8 +380,8 @@ export async function handleFathomMeaning(
   }
 }
 
-export async function handleTldrDocs(
-  args: TldrDocsArgs
+export async function handleSummarizeDoc(
+  args: SummarizeDocArgs
 ): Promise<McpToolResponse> {
   const { filePath, maxLength } = args;
 
@@ -447,8 +448,8 @@ export async function handleTldrDocs(
   }
 }
 
-export async function handleHuntRelated(
-  args: HuntRelatedArgs
+export async function handleFindRelated(
+  args: FindRelatedArgs
 ): Promise<McpToolResponse> {
   const { dirPath: rawPath, topic, threshold } = args;
 
@@ -536,8 +537,8 @@ export async function handleHuntRelated(
   }
 }
 
-export async function handleSmellStale(
-  args: SmellStaleArgs
+export async function handleCheckStale(
+  args: CheckStaleArgs
 ): Promise<McpToolResponse> {
   const { dirPath: rawPath, maxAgeDays, compareWithCode } = args;
 
@@ -611,8 +612,8 @@ export async function handleSmellStale(
   }
 }
 
-export async function handleSenseSurroundings(
-  args: SenseSurroundingsArgs
+export async function handleGetContext(
+  args: GetContextArgs
 ): Promise<McpToolResponse> {
   const { dirPath: rawPath, currentFilePath, contextDepth } = args;
 
@@ -746,8 +747,8 @@ export async function handleSenseSurroundings(
   }
 }
 
-export async function handleGaugeDocs(
-  args: GaugeDocsArgs
+export async function handleMeasureCoverage(
+  args: MeasureCoverageArgs
 ): Promise<McpToolResponse> {
   const { dirPath: rawPath, filePatterns, publicOnly } = args;
 
@@ -756,10 +757,11 @@ export async function handleGaugeDocs(
     const isPublicOnly = publicOnly !== false;
 
     // Source file patterns to scan for docblocks
+    const allExt = SupportedLanguage.all().flatMap(l => l.extensions).join(",");
     const patterns = filePatterns || [
-      "src/**/*.{js,ts,jsx,tsx,php,py,rb,go,rs,java,cpp,c,cs,swift,dart}",
-      "lib/**/*.{js,ts,jsx,tsx,php,py,rb,go,rs,java,cpp,c,cs,swift,dart}",
-      "app/**/*.{js,ts,jsx,tsx,php,py,rb,go,rs,java,cpp,c,cs,swift,dart}",
+      `src/**/*.{${allExt}}`,
+      `lib/**/*.{${allExt}}`,
+      `app/**/*.{${allExt}}`,
     ];
 
     const release = await operationLimiter.acquire();
@@ -802,7 +804,8 @@ export async function handleGaugeDocs(
             }
           }
 
-          for (let i = 0; i < lines.length; i++) {
+          const numDocLines = lines.length;
+          for (let i = 0; i < numDocLines; i++) {
             const line = lines[i];
             const match = line.match(itemRegex);
 

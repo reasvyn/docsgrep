@@ -1,0 +1,12 @@
+{
+  "name": "C / C++",
+  "alias": "cpp",
+  "extensions": ["c", "h", "cpp", "hpp", "cxx", "hxx", "cc", "hh", "ino"],
+  "configFiles": ["CMakeLists.txt", "Makefile", "configure", "meson.build", "*.cmake"],
+  "commentStyle": { "single": "//", "multiStart": "/*", "multiEnd": "*/", "hashBang": false },
+  "docStyle": { "single": "///", "multiStart": "/**", "multiEnd": "*/" },
+  "packageManager": "CMake / Make / Meson",
+  "ecosystem": "vcpkg / Conan",
+  "ignoreFiles": ["build/", "*.o", "*.obj", "*.exe", "*.dll", "*.so", "*.a"],
+  "debugPatterns": ["printf\\s*\\(", "std::cout", "NSLog\\s*\\("]
+}

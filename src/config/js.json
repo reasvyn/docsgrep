@@ -1,0 +1,12 @@
+{
+  "name": "JavaScript / TypeScript",
+  "alias": "js",
+  "extensions": ["js", "mjs", "cjs", "jsx", "ts", "mts", "cts", "tsx"],
+  "configFiles": ["package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "tsconfig.json"],
+  "commentStyle": { "single": "//", "multiStart": "/*", "multiEnd": "*/", "hashBang": true },
+  "docStyle": { "single": "///", "multiStart": "/**", "multiEnd": "*/" },
+  "packageManager": "npm / yarn / pnpm",
+  "ecosystem": "npm",
+  "ignoreFiles": ["node_modules/", "build/", "dist/", "coverage/", ".next/", ".nuxt/"],
+  "debugPatterns": ["console\\.(log|debug|error|warn)\\s*\\(", "debugger\\s*;"]
+}

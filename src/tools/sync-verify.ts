@@ -1,5 +1,5 @@
 /**
- * Sync & verification tools: sync_docs, verify_truth, spot_delta, catch_fossils
+ * Sync & verification tools: sync_documentation, verify_docs, check_delta, check_artefacts
  */
 import { glob } from "glob";
 import { getIgnorePatterns } from "../utils/file.js";
@@ -13,21 +13,23 @@ import {
 } from "../utils/validation.js";
 import { operationLimiter } from "../utils/semaphore.js";
 import { logger } from "../utils/logger.js";
+import { SupportedLanguage } from "../utils/supported-language.js";
 import {
   type McpToolResponse,
-  type SyncDocsArgs,
-  type VerifyTruthArgs,
-  type SpotDeltaArgs,
-  type CatchFossilsArgs,
+  type SyncDocumentationArgs,
+  type VerifyDocsArgs,
+  type CheckDeltaArgs,
+  type CheckArtefactsArgs,
 } from "../types/tools.js";
 
-// Language-agnostic code file patterns
-const CODE_FILE_PATTERNS = [
-  "**/*.{js,ts,jsx,tsx,py,rb,go,rs,java,php,c,cpp,cs,swift,dart,kt,scala,ex,exs,cljs,vue,svelte}",
-];
+// Code file patterns for verification
+const CODE_FILE_PATTERNS = (() => {
+  const ext = SupportedLanguage.all().flatMap(l => l.extensions).join(",");
+  return [`**/*.{${ext}}`];
+})();
 
-export async function handleSyncDocs(
-  args: SyncDocsArgs
+export async function handleSyncDocumentation(
+  args: SyncDocumentationArgs
 ): Promise<McpToolResponse> {
   const { dirPath: rawPath, filePaths, updateMode } = args;
 
@@ -88,8 +90,8 @@ export async function handleSyncDocs(
   }
 }
 
-export async function handleVerifyTruth(
-  args: VerifyTruthArgs
+export async function handleVerifyDocs(
+  args: VerifyDocsArgs
 ): Promise<McpToolResponse> {
   const { dirPath: rawPath, docPath, strictMode } = args;
 
@@ -215,8 +217,8 @@ export async function handleVerifyTruth(
   }
 }
 
-export async function handleSpotDelta(
-  args: SpotDeltaArgs
+export async function handleCheckDelta(
+  args: CheckDeltaArgs
 ): Promise<McpToolResponse> {
   const { dirPath: rawPath, docPath, includeCodeSnippets } = args;
 
@@ -332,8 +334,8 @@ export async function handleSpotDelta(
   }
 }
 
-export async function handleCatchFossils(
-  args: CatchFossilsArgs
+export async function handleCheckArtefacts(
+  args: CheckArtefactsArgs
 ): Promise<McpToolResponse> {
   const { dirPath: rawPath, sinceCommit, priorityMode } = args;
 
