@@ -9,3 +9,8 @@ opencode.json
 
 # docsgrep workspace and cache
 .docsgrep/
+
+# legacy and backup files
+/**/*.backup
+/**/*.bak
+/**/*.bk
