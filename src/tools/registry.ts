@@ -3,35 +3,36 @@
  */
 import { type McpToolResponse } from "../types/tools.js";
 import { handleInitWorkspace, handleClearCache } from "./workspace.js";
-import {
-  handleFindDocs,
-  handleReadFile,
-  handleSearchDocs,
-  handleSemanticSearch,
-  handleSummarizeDoc,
-  handleFindRelated,
-  handleCheckStale,
-  handleGetContext,
-  handleMeasureCoverage,
-} from "./documentation.js";
-import {
-  handleSyncDocumentation,
-  handleVerifyDocs,
-  handleCheckDelta,
-  handleCheckArtefacts,
-} from "./sync-verify.js";
-import {
-  handleShowHelp,
-  handleDetectStack,
-  handleCheckStyle,
-  handleCloneRepo,
-} from "./help-info.js";
+
+// Documentation — doc-find
+import { handleFindDocs } from "./doc-find.js";
+// Documentation — doc-search
+import { handleSearchDocs, handleSemanticSearch, handleFindRelated } from "./doc-search.js";
+// Documentation — doc-inspect
+import { handleReadFile, handleSummarizeDoc, handleCheckStale, handleGetContext } from "./doc-inspect.js";
+// Documentation — doc-coverage
+import { handleMeasureCoverage } from "./doc-coverage.js";
+
+// Sync & Verify — doc-verify
+import { handleVerifyDocs, handleCheckDelta } from "./doc-verify.js";
+// Sync & Verify — doc-sync
+import { handleSyncDocumentation, handleCheckArtefacts } from "./doc-sync.js";
+
+// Help & Info — help, repo-analysis, repo
+import { handleShowHelp } from "./help.js";
+import { handleDetectStack, handleCheckStyle } from "./repo-analysis.js";
+import { handleCloneRepo } from "./repo.js";
+
+// Archetypes & interactive audit
 import { handleDetectPatternsTool } from "./archetypes.js";
 import { handleLintInteractiveTool, handleSecurityInteractiveTool } from "./audit-ask.js";
+
+// Core audit tool classes
+import { AnalyzeCodeTool, AuditSecurityTool, CatchBugsTool } from "../core-tools.js";
+
+// Plugin support
 import { PluginManager } from "../utils/plugin-manager.js";
 
-// Import core audit handlers (these will remain class-based for now)
-// We use a dynamic lookup map to replace switch-cases
 export type ToolHandler = (args: any) => Promise<McpToolResponse>;
 
 export class ToolRegistry {
@@ -51,23 +52,26 @@ export class ToolRegistry {
     return await handler(args);
   }
 
-  /**
-   * Initialize and register all core handlers
-   */
   static initialize(overrides: Record<string, ToolHandler> = {}) {
     // Workspace
     this.register("init_workspace", handleInitWorkspace);
     this.register("clear_cache", handleClearCache);
 
-    // Documentation
+    // Documentation — find
     this.register("find_docs", handleFindDocs);
-    this.register("read_file", handleReadFile);
+
+    // Documentation — search
     this.register("search_docs", handleSearchDocs);
     this.register("semantic_search", handleSemanticSearch);
-    this.register("summarize_doc", handleSummarizeDoc);
     this.register("find_related", handleFindRelated);
+
+    // Documentation — inspect
+    this.register("read_file", handleReadFile);
+    this.register("summarize_doc", handleSummarizeDoc);
     this.register("check_stale", handleCheckStale);
     this.register("get_context", handleGetContext);
+
+    // Documentation — coverage
     this.register("measure_coverage", handleMeasureCoverage);
 
     // Sync & Verify
@@ -89,7 +93,12 @@ export class ToolRegistry {
     this.register("lint_interactive", handleLintInteractiveTool);
     this.register("security_interactive", handleSecurityInteractiveTool);
 
-    // Register overrides (for class-based tools like AnalyzeCodeTool)
+    // Core class-based tools
+    this.register("analyze_code", (a) => new AnalyzeCodeTool().execute(a));
+    this.register("audit_security", (a) => new AuditSecurityTool().execute(a));
+    this.register("catch_bugs", (a) => new CatchBugsTool().execute(a));
+
+    // Register any caller-provided overrides
     for (const [name, handler] of Object.entries(overrides)) {
       this.register(name, handler);
     }
