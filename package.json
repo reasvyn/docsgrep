@@ -1,19 +1,52 @@
 {
-  "name": "docsgrep-monorepo",
-  "private": true,
-  "workspaces": ["packages/*"],
+  "name": "docsgrep",
+  "version": "0.9.0",
+  "description": "Documentation search, code quality auditing, security scanning, and bug detection — available as a CLI devtool and MCP server",
   "type": "module",
+  "packageManager": "pnpm@10.33.2",
+  "bin": {
+    "docsgrep": "build/index.js"
+  },
   "scripts": {
-    "build": "bun run --filter docsgrep build",
-    "dev": "bun run --filter docsgrep dev",
-    "test": "bun run --filter docsgrep test",
-    "test:watch": "bun run --filter docsgrep test:watch",
-    "test:coverage": "bun run --filter docsgrep test:coverage",
-    "lint": "bun run --filter docsgrep lint",
-    "audit": "bun run --filter docsgrep audit",
-    "bugs": "bun run --filter docsgrep bugs",
-    "docs:check": "bun run --filter docsgrep docs:check",
-    "docs:stale": "bun run --filter docsgrep docs:stale",
-    "release": "bun run --filter docsgrep release"
+    "build": "tsc",
+    "prepare": "pnpm build",
+    "start": "node build/index.js",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "lint": "node build/index.js run analyze_code",
+    "audit": "node build/index.js run audit_security",
+    "bugs": "node build/index.js run catch_bugs",
+    "docs:check": "node build/index.js run measure_coverage",
+    "docs:stale": "node build/index.js run check_stale",
+    "release": "node scripts/publish.js"
+  },
+  "keywords": [
+    "cli",
+    "devtool",
+    "documentation",
+    "code-quality",
+    "code-audit",
+    "security-scanning",
+    "bug-detection",
+    "mcp",
+    "mcp-server"
+  ],
+  "author": "Reas Vyn <reasvyn@gmail.com>",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "glob": "^10.0.0",
+    "simple-git": "^3.22.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@vitest/coverage-v8": "^4.1.5",
+    "rimraf": "^5.0.0",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "^5.3.3",
+    "vitest": "^4.1.5"
   }
 }

@@ -8,9 +8,9 @@ We maintain high engineering standards to ensure reliability for both CLI users 
 
 ### 1. Strict TypeScript & ESM
 
-- **Strict Typing**: No `any` unless absolutely unavoidable (and documented). Use the interfaces in `packages/docsgrep/src/types/tools.ts`.
+- **Strict Typing**: No `any` unless absolutely unavoidable (and documented). Use the interfaces in `src/types/tools.ts`.
 - **Node.js ESM**: We use `"type": "module"`. All imports **must** include the `.js` extension (e.g., `import { x } from "./utils.js"`).
-- **Zod Schemas**: Tool inputs are validated via Zod in `packages/docsgrep/src/index.ts`.
+- **Zod Schemas**: Tool inputs are validated via Zod in `src/index.ts`.
 
 ### 2. Testing Mandate
 
@@ -23,13 +23,13 @@ We maintain high engineering standards to ensure reliability for both CLI users 
 - If you change a tool's behavior, update:
     1. The markdown file in `docs/tools/`.
     2. The `README.md` (if it's a major change).
-     3. The internal help map in `packages/docsgrep/src/tools/help-info.ts`.
+     3. The internal help map in `src/tools/help-info.ts`.
 
 ## Getting Started
 
-1. **Setup**: `bun install`
-2. **Develop**: Logic is modularized in `packages/docsgrep/src/tools/` and `packages/docsgrep/src/utils/`.
-3. **Validate**: `bun test`
+1. **Setup**: `pnpm install`
+2. **Develop**: Logic is modularized in `src/tools/` and `src/utils/`.
+3. **Validate**: `pnpm test`
 4. **Submit**: Open a PR with a clear description of the *intent* and *impact*.
 
 ## Contact
