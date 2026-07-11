@@ -118,7 +118,7 @@ export async function handleCheckArtefacts(
         // Git not available
       }
 
-      const fossilDocs: Array<{
+      const staleDocArtefacts: Array<{
         file: string;
         reason: string;
         priority: string;
@@ -138,7 +138,7 @@ export async function handleCheckArtefacts(
         });
 
         if (relatedChanges.length > 0) {
-          fossilDocs.push({
+          staleDocArtefacts.push({
             file: path.join(dirPath, doc),
             reason: `${relatedChanges.length} related code changes detected`,
             priority:
@@ -156,7 +156,7 @@ export async function handleCheckArtefacts(
         medium: 1,
         low: 2,
       };
-      fossilDocs.sort(
+      staleDocArtefacts.sort(
         (a, b) => priorityOrder[a.priority] - priorityOrder[b.priority]
       );
 
@@ -166,10 +166,10 @@ export async function handleCheckArtefacts(
             type: "text",
             text: JSON.stringify(
               {
-                message: `Found ${fossilDocs.length} documentation artefacts that may need updates.`,
+                message: `Found ${staleDocArtefacts.length} documentation artefacts that may need updates.`,
                 priorityMode: mode,
                 sinceCommit: sinceCommit || "recent commits",
-                staleArtefacts: fossilDocs,
+                staleArtefacts: staleDocArtefacts,
               },
               null,
               2

@@ -3,7 +3,6 @@ import { cloneOrUpdateRepo, getRepoCachePath } from '../../../src/utils/git.js';
 import { simpleGit } from 'simple-git';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
-import * as os from 'node:os';
 
 vi.mock('simple-git');
 vi.mock('node:fs/promises');
@@ -60,12 +59,11 @@ describe('git utils', () => {
   });
 
   describe('getRepoCachePath', () => {
-    it('should return a path in user home by default', () => {
+    it('should return a path in .docsgrep/repos/ by default', () => {
       const repoUrl = 'https://github.com/user/repo.git';
       const cachePath = getRepoCachePath(repoUrl);
       
-      expect(cachePath).toContain(os.homedir());
-      expect(cachePath).toContain('.docsgrep');
+      expect(cachePath).toContain('.docsgrep/repos/');
       expect(cachePath).toContain('repo');
     });
 

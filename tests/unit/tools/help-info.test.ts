@@ -75,7 +75,7 @@ describe('help-info tools', () => {
 
   describe('handleCloneRepo', () => {
     it('should clone remote repo and find docs', async () => {
-      vi.mocked(gitUtils.getRepoCachePath).mockReturnValue('/tmp/repo');
+      vi.mocked(gitUtils.getRepoCachePath).mockReturnValue('/workspace/.docsgrep/repos/myrepo-abc12345');
       vi.mocked(gitUtils.cloneOrUpdateRepo).mockResolvedValue(undefined);
       vi.mocked(fs.mkdir).mockResolvedValue(undefined);
       vi.mocked(glob).mockResolvedValue(['README.md'] as any);
@@ -83,7 +83,7 @@ describe('help-info tools', () => {
       const result = await handleCloneRepo({ repoUrl: 'https://github.com/user/repo.git' });
       const data = JSON.parse(result.content[0].text);
       expect(data.files.length).toBeGreaterThan(0);
-      expect(data.cachePath).toBe('/tmp/repo');
+      expect(data.cachePath).toBe('/workspace/.docsgrep/repos/myrepo-abc12345');
     });
   });
 });
