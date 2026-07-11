@@ -154,7 +154,7 @@ export async function handleMeasureCoverage(
   } catch (error: any) {
     return {
       content: [
-        { type: "text", text: `Error gauging doc coverage: ${error.message}` },
+        { type: "text", text: `Error measuring documentation coverage: ${error.message}` },
       ],
       isError: true,
     };

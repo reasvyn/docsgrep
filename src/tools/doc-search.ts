@@ -344,7 +344,7 @@ export async function handleFindRelated(
   } catch (error: any) {
     return {
       content: [
-        { type: "text", text: `Error hunting related docs: ${error.message}` },
+        { type: "text", text: `Error finding related documentation: ${error.message}` },
       ],
       isError: true,
     };

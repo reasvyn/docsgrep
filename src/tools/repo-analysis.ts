@@ -78,7 +78,6 @@ export async function handleCheckStyle(
       "CONTRIBUTING*",
       "ARCHITECTURE*",
       "STYLEGUIDE*",
-      "docs/tools/check_style.md",
     ]);
 
     const conventions: Record<string, string> = {};

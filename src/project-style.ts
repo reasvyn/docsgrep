@@ -1,5 +1,4 @@
-// analyze_project_style - Combined Project Conventions & Codebase Patterns
-// Provides comprehensive project style analysis
+// Project style analysis utilities — convention detection and code pattern sampling
 
 import * as path from 'node:path';
 import { getIgnorePatterns } from './utils/file.js';

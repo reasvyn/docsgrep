@@ -385,7 +385,7 @@ export function logout() { return; }
       });
 
       const data = JSON.parse((result.content as any)[0].text);
-      expect(data.fossils).toBeDefined();
+      expect(data.staleArtefacts).toBeDefined();
       expect(data.priorityMode).toBe('impact');
     });
 

@@ -83,7 +83,7 @@ describe('help-info tools', () => {
       const result = await handleCloneRepo({ repoUrl: 'https://github.com/user/repo.git' });
       const data = JSON.parse(result.content[0].text);
       expect(data.files.length).toBeGreaterThan(0);
-      expect(data.tempDirectory).toBe('/tmp/repo');
+      expect(data.cachePath).toBe('/tmp/repo');
     });
   });
 });

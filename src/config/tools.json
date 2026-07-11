@@ -1,7 +1,7 @@
 [
   {
     "name": "init_workspace",
-    "description": "Sets up a docsgrep base camp in the specified project directory to store temporary files, logs, and reports. Also automatically updates the .gitignore file.",
+    "description": "Initializes the .docsgrep workspace in the specified project directory to store cached data, logs, and reports. Also automatically updates .gitignore.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -12,7 +12,7 @@
   },
   {
     "name": "detect_stack",
-    "description": "Spies on the project's technology stack by reading package manager files (e.g., package.json, composer.json, go.mod, Cargo.toml).",
+    "description": "Detects the project's technology stack by reading package manager files (e.g., package.json, composer.json, go.mod, Cargo.toml).",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -24,7 +24,7 @@
   },
   {
     "name": "check_style",
-    "description": "Sniffs out project style: conventions, linters, and infers implicit coding patterns from codebase samples. Combines convention detection and code pattern analysis.",
+    "description": "Analyzes project coding style: linter configs, conventions, and implicit patterns inferred from codebase samples.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -36,7 +36,7 @@
   },
   {
     "name": "find_docs",
-    "description": "Hunts for README files and documentation inside docs/ folders in a local directory.",
+    "description": "Discovers documentation files (README, docs/**/*.md) in a local directory.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -49,7 +49,7 @@
   },
   {
     "name": "clone_repo",
-    "description": "Fetches a remote git repository to a temporary directory and finds documentation. Supports authentication for private repos.",
+    "description": "Clones a remote git repository into the workspace cache and discovers documentation files. Supports authentication for private repos.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -65,7 +65,7 @@
   },
   {
     "name": "read_file",
-    "description": "Peeks into the contents of a specific documentation or README file.",
+    "description": "Reads the contents of a specific documentation or source file.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -76,7 +76,7 @@
   },
   {
     "name": "clear_cache",
-    "description": "Purges old cached repositories from the .docsgrep workspace. Removes repos older than the specified max age (default 7 days).",
+    "description": "Removes cached repositories from the .docsgrep workspace that exceed the specified age threshold (default: 7 days).",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -119,7 +119,7 @@
   },
   {
     "name": "lint_interactive",
-    "description": "Asks what you want to lint. Generates an interactive prompt showing detected tech stack and available linting options.",
+    "description": "Generates an interactive audit prompt showing detected tech stack and available linting options.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -130,7 +130,7 @@
   },
   {
     "name": "audit_security",
-    "description": "Guards your code with enterprise-grade security audit covering OWASP Top 10, ISO/IEC 27001, secrets detection, privacy (GDPR/CCPA), and dependency vulnerabilities.",
+    "description": "Performs a comprehensive security audit covering OWASP Top 10, secrets detection, privacy compliance (GDPR/CCPA), and dependency vulnerabilities.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -144,7 +144,7 @@
   },
   {
     "name": "security_interactive",
-    "description": "Asks before guarding. Shows what will be scanned (OWASP Top 10, secrets, privacy, dependencies) and available options.",
+    "description": "Generates an interactive security audit prompt showing scan coverage (OWASP, secrets, privacy, dependencies) and options.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -155,7 +155,7 @@
   },
   {
     "name": "catch_bugs",
-    "description": "Catches bugs, errors, warnings, and potential issues in code: race conditions, memory leaks, runtime errors, dependency coupling, and performance issues.",
+    "description": "Detects bugs and potential issues in code: race conditions, memory leaks, runtime errors, dependency coupling, and performance problems.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -182,7 +182,7 @@
   },
   {
     "name": "summarize_doc",
-    "description": "Automatically summarizes specific documentation files into concise, digestible chunks. Gets the essence without the noise.",
+    "description": "Summarizes a documentation file by extracting headings and key content into a concise overview.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -194,7 +194,7 @@
   },
   {
     "name": "find_related",
-    "description": "Hunts for documentation related to a specific topic, pattern, or concept. Uses similarity matching to find docs that cover the same domain.",
+    "description": "Finds documentation related to a specific topic using keyword similarity matching.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -207,7 +207,7 @@
   },
   {
     "name": "check_stale",
-    "description": "Sniffs out documentation that has gone stale - not updated in 30+ days or out of sync with the actual code.",
+    "description": "Detects stale documentation that has not been updated within the specified age threshold.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -246,7 +246,7 @@
   },
   {
     "name": "get_context",
-    "description": "Automatically provides relevant documentation context based on what code you're currently working on. No need to ask - it just knows.",
+    "description": "Provides relevant documentation context based on the file you are currently working on, using import analysis and directory proximity.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -259,7 +259,7 @@
   },
   {
     "name": "check_delta",
-    "description": "Compares what's documented versus what's actually in the code. Shows the delta between documentation claims and implementation reality.",
+    "description": "Compares documented symbols against actual code implementations to identify documentation drift.",
     "inputSchema": {
       "type": "object",
       "properties": {
@@ -282,7 +282,7 @@
   },
   {
     "name": "check_artefacts",
-    "description": "Analyzes which documentation artifacts need updates based on recent codebase changes. Uses git diff to prioritize doc updates.",
+    "description": "Identifies documentation that may be outdated based on recent code changes. Uses git history to prioritize updates.",
     "inputSchema": {
       "type": "object",
       "properties": {

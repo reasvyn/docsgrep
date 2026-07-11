@@ -256,7 +256,7 @@ export async function handleCheckDelta(
   } catch (error: any) {
     return {
       content: [
-        { type: "text", text: `Error spotting delta: ${error.message}` },
+        { type: "text", text: `Error checking documentation delta: ${error.message}` },
       ],
       isError: true,
     };

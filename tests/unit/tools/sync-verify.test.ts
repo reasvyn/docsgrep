@@ -102,8 +102,8 @@ describe('sync-verify tools', () => {
       
       const result = await handleCheckArtefacts({ dirPath: '/test' });
       const data = JSON.parse(result.content[0].text);
-      expect(data.fossils.length).toBeGreaterThan(0);
-      expect(data.fossils[0].file).toContain('index.md');
+      expect(data.staleArtefacts.length).toBeGreaterThan(0);
+      expect(data.staleArtefacts[0].file).toContain('index.md');
     });
   });
 });

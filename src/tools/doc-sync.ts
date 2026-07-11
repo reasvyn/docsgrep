@@ -166,10 +166,10 @@ export async function handleCheckArtefacts(
             type: "text",
             text: JSON.stringify(
               {
-                message: `Found ${fossilDocs.length} documentation artifacts that may need updates.`,
+                message: `Found ${fossilDocs.length} documentation artefacts that may need updates.`,
                 priorityMode: mode,
                 sinceCommit: sinceCommit || "recent commits",
-                fossils: fossilDocs,
+                staleArtefacts: fossilDocs,
               },
               null,
               2
@@ -183,7 +183,7 @@ export async function handleCheckArtefacts(
   } catch (error: any) {
     return {
       content: [
-        { type: "text", text: `Error catching fossils: ${error.message}` },
+        { type: "text", text: `Error checking artefacts: ${error.message}` },
       ],
       isError: true,
     };

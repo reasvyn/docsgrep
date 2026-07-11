@@ -34,7 +34,7 @@ export async function handleCloneRepo(
             type: "text",
             text: JSON.stringify({
               message: `Cloned repository. Found ${files.length} files.`,
-              tempDirectory: targetDir,
+              cachePath: targetDir,
               files: files.map((f: string) => path.join(targetDir, f)),
             }, null, 2),
           },

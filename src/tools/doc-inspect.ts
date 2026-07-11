@@ -343,7 +343,7 @@ export async function handleGetContext(
   } catch (error: any) {
     return {
       content: [
-        { type: "text", text: `Error sensing surroundings: ${error.message}` },
+        { type: "text", text: `Error getting documentation context: ${error.message}` },
       ],
       isError: true,
     };
