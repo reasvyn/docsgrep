@@ -371,22 +371,32 @@ pnpm vitest run tests/unit/tools/documentation.test.ts
 ```
 docsgrep/
 ├── src/
-│   ├── index.ts            # Entry point (CLI + MCP server)
-│   ├── tools/              # Tool handlers
-│   │   ├── base.ts         # BaseTool abstract class + FileScanner
+│   ├── index.ts            # Entry point (MCP server + plugin discovery)
+│   ├── cli.ts              # CLI argument parsing and display
+│   ├── core-tools.ts       # Class-based tools (AnalyzeCodeTool, etc.)
+│   ├── tools/              # Tool handlers (one module per logical group)
+│   │   ├── base.ts         # BaseTool<T> abstract class
 │   │   ├── registry.ts     # Tool registry (name → handler mapping)
-│   │   ├── documentation.ts
-│   │   ├── sync-verify.ts
-│   │   ├── help-info.ts
-│   │   ├── workspace.ts
-│   │   ├── archetypes.ts
-│   │   └── audit-ask.ts
+│   │   ├── doc-find.ts     # find_docs
+│   │   ├── doc-search.ts   # search_docs, semantic_search, find_related
+│   │   ├── doc-inspect.ts  # read_file, summarize_doc, check_stale, get_context
+│   │   ├── doc-coverage.ts # measure_coverage
+│   │   ├── doc-verify.ts   # verify_docs, check_delta
+│   │   ├── doc-sync.ts     # sync_documentation, check_artefacts
+│   │   ├── help.ts         # show_help
+│   │   ├── repo-analysis.ts # detect_stack, check_style
+│   │   ├── repo.ts         # clone_repo
+│   │   ├── workspace.ts    # init_workspace, clear_cache
+│   │   ├── archetypes.ts   # detect_patterns
+│   │   └── audit-ask.ts    # lint_interactive, security_interactive
 │   ├── utils/              # Shared utilities
 │   │   ├── file.ts         # FileScanner, getIgnorePatterns
-│   │   ├── git.ts          # Git operations
+│   │   ├── git.ts          # Git operations + repo cache
 │   │   ├── validation.ts   # Input validation
 │   │   ├── semaphore.ts    # Concurrency limiter
-│   │   ├── logger.ts       # Logging
+│   │   ├── logger.ts       # Dual output: stderr + file logs
+│   │   ├── workspace.ts    # .docsgrep/ path resolution
+│   │   ├── cache.ts        # TTL-based file cache
 │   │   ├── plugin-manager.ts
 │   │   └── app-info.ts     # AppInfo (version, name from package.json)
 │   ├── types/              # TypeScript interfaces

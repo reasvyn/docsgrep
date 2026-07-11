@@ -15,9 +15,18 @@ Commands prefixed `lint`, `audit`, `bugs`, `docs:check`, `docs:stale` run **docs
 
 Single-package TypeScript project (ESM).
 
-- `src/index.ts` — entry point (CLI engine + MCP server, keep thin)
-- `src/tools/` — tool handlers; inherit from `tools/base.ts`
-- `src/utils/` — shared utilities (file scanning, git, validation)
+- `src/index.ts` — entry point (MCP server setup + plugin discovery, keep thin)
+- `src/cli.ts` — CLI argument parsing and display
+- `src/core-tools.ts` — class-based tools (AnalyzeCodeTool, AuditSecurityTool, CatchBugsTool)
+- `src/tools/` — tool handlers; one module per logical group:
+  - `base.ts` — BaseTool<T> abstract class (semaphore, logging, credential masking)
+  - `registry.ts` — ToolRegistry (imports from split modules, self-registers core tools)
+  - `doc-find.ts`, `doc-search.ts`, `doc-inspect.ts`, `doc-coverage.ts` — documentation tools
+  - `doc-verify.ts`, `doc-sync.ts` — verification and sync tools
+  - `help.ts`, `repo-analysis.ts`, `repo.ts` — help, stack detection, clone
+  - `workspace.ts` — workspace init and cache management
+  - `archetypes.ts`, `audit-ask.ts` — pattern detection and interactive prompts
+- `src/utils/` — shared utilities (file scanning, git, validation, workspace, cache, logging)
 - `src/types/tools.ts` — tool input interfaces
 - `src/config/` — JSON config for limits, patterns, language defs
 - `tests/` — Vitest test suites (`tests/**/*.test.ts`)

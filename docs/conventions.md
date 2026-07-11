@@ -24,7 +24,7 @@ This document defines the coding standards, naming rules, and project convention
 
 | Element | Convention | Example |
 |---|---|---|
-| Files (tools) | `kebab-case.ts` | `sync-verify.ts`, `help-info.ts` |
+| Files (tools) | `kebab-case.ts` | `doc-find.ts`, `repo-analysis.ts` |
 | Files (utils) | `kebab-case.ts` | `app-info.ts`, `plugin-manager.ts` |
 | Tool handler functions | `handle` + PascalCase | `handleFindDocs`, `handleSearchDocs` |
 | Tool class names | PascalCase + `Tool` suffix | `AnalyzeCodeTool`, `FindDocsTool` |
@@ -39,11 +39,24 @@ This document defines the coding standards, naming rules, and project convention
 
 ```
 src/
-├── index.ts              # Entry point -- keep thin
-├── tools/                # Tool handlers (one file per functional group)
-│   ├── base.ts           # BaseTool + FileScanner (foundation)
+├── index.ts              # Entry point -- keep thin (~56 lines)
+├── cli.ts                # CLI argument parsing and display
+├── core-tools.ts         # Class-based tools (AnalyzeCodeTool, etc.)
+├── tools/                # Tool handlers (one module per logical group)
+│   ├── base.ts           # BaseTool<T> (semaphore, logging, credential masking)
 │   ├── registry.ts       # ToolRegistry
-│   └── *.ts              # Handler modules
+│   ├── doc-find.ts       # find_docs
+│   ├── doc-search.ts     # search_docs, semantic_search, find_related
+│   ├── doc-inspect.ts    # read_file, summarize_doc, check_stale, get_context
+│   ├── doc-coverage.ts   # measure_coverage
+│   ├── doc-verify.ts     # verify_docs, check_delta
+│   ├── doc-sync.ts       # sync_documentation, check_artefacts
+│   ├── help.ts           # show_help
+│   ├── repo-analysis.ts  # detect_stack, check_style
+│   ├── repo.ts           # clone_repo
+│   ├── workspace.ts      # init_workspace, clear_cache
+│   ├── archetypes.ts     # detect_patterns
+│   └── audit-ask.ts      # lint_interactive, security_interactive
 ├── utils/                # Shared utilities (stateless where possible)
 ├── types/                # TypeScript interfaces and type aliases
 └── config/               # JSON configuration (loaded at runtime)
@@ -95,7 +108,7 @@ class MyTool extends BaseTool<MyToolArgs> {
 - **Reset**: `beforeEach(() => vi.resetAllMocks())`.
 - **Assertions**: parse `JSON.parse(result.content[0].text)` before asserting on data.
 - **E2E tests**: use `StdioClientTransport` from `@modelcontextprotocol/sdk` with a 30-second timeout on `beforeAll`.
-- **Coverage**: run `bun run test:coverage` before submitting PRs.
+- **Coverage**: run `pnpm test:coverage` before submitting PRs.
 
 ### Test File Placement
 

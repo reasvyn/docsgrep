@@ -30,37 +30,48 @@ This document describes the internal architecture of docsgrep for developers wor
 
 ### Entry Point (`src/index.ts`)
 
-Kept intentionally thin. Responsibilities:
+Kept intentionally thin (~56 lines). Responsibilities:
 
 1. Create the MCP `Server` instance with capabilities and transport.
-2. Parse CLI arguments (`process.argv`).
-3. Initialize `ToolRegistry` and `PluginManager`.
-4. Dispatch to either CLI mode or MCP stdio mode.
+2. Initialize `ToolRegistry` and `PluginManager`.
+3. Dispatch to either CLI mode or MCP stdio mode.
+
+CLI argument parsing and display logic lives in `src/cli.ts`. Class-based tools (`AnalyzeCodeTool`, `AuditSecurityTool`, `CatchBugsTool`) live in `src/core-tools.ts`.
 
 ### Tool Layer (`src/tools/`)
 
+Handlers are split into single-responsibility modules. Barrel re-exports (`documentation.ts`, `sync-verify.ts`, `help-info.ts`) re-export the split modules for backward compatibility with existing tests.
+
 | File | Responsibility |
 |---|---|
-| `base.ts` | `BaseTool<T>` abstract class, `FileScanner` static utility |
-| `registry.ts` | `ToolRegistry` -- static class mapping tool names to handlers |
-| `documentation.ts` | Handlers for `find_docs`, `read_file`, `search_docs`, `semantic_search`, `summarize_doc`, `find_related`, `check_stale`, `get_context`, `measure_coverage` |
-| `sync-verify.ts` | Handlers for `sync_documentation`, `verify_docs`, `check_delta`, `check_artefacts` |
-| `help-info.ts` | Handlers for `show_help`, `detect_stack`, `check_style`, `clone_repo` |
-| `workspace.ts` | Handlers for `init_workspace`, `clear_cache` |
-| `archetypes.ts` | Handler for `detect_patterns` |
-| `audit-ask.ts` | Handlers for `lint_interactive`, `security_interactive` |
+| `base.ts` | `BaseTool<T>` abstract class (semaphore, logging, credential masking) |
+| `registry.ts` | `ToolRegistry` -- imports from split modules, self-registers core tools |
+| `doc-find.ts` | `find_docs` handler |
+| `doc-search.ts` | `search_docs`, `semantic_search`, `find_related` handlers |
+| `doc-inspect.ts` | `read_file`, `summarize_doc`, `check_stale`, `get_context` handlers |
+| `doc-coverage.ts` | `measure_coverage` handler |
+| `doc-verify.ts` | `verify_docs`, `check_delta` handlers |
+| `doc-sync.ts` | `sync_documentation`, `check_artefacts` handlers |
+| `help.ts` | `show_help` handler |
+| `repo-analysis.ts` | `detect_stack`, `check_style` handlers |
+| `repo.ts` | `clone_repo` handler |
+| `workspace.ts` | `init_workspace`, `clear_cache` handlers |
+| `archetypes.ts` | `detect_patterns` handler |
+| `audit-ask.ts` | `lint_interactive`, `security_interactive` handlers |
 
-Three heavy tools (`analyze_code`, `audit_security`, `catch_bugs`) are implemented as class-based tools extending `BaseTool<T>` and registered via overrides in `index.ts`.
+Class-based tools (`AnalyzeCodeTool`, `AuditSecurityTool`, `CatchBugsTool`) are defined in `src/core-tools.ts` and registered via overrides in `index.ts`.
 
 ### Utility Layer (`src/utils/`)
 
 | File | Responsibility |
 |---|---|
 | `file.ts` | `FileScanner.findFiles()`, `getIgnorePatterns()` (gitignore support) |
-| `git.ts` | Git operations via `simple-git` |
+| `git.ts` | Git operations via `simple-git`, repo cache at `.docsgrep/repos/` |
 | `validation.ts` | `validateDirPath()`, `validateStringParam()`, `escapeRegex()` |
 | `semaphore.ts` | `Semaphore` class -- concurrency limiter (default: 5) |
-| `logger.ts` | Structured logging with credential masking |
+| `logger.ts` | Dual output: stderr + file-based logs in `.docsgrep/logs/` |
+| `workspace.ts` | Centralized `.docsgrep/` path resolution (`resolveWorkspace`, `ensureWorkspace`) |
+| `cache.ts` | File-based cache with TTL in `.docsgrep/cache/data/` |
 | `plugin-manager.ts` | `PluginManager` -- discovery, loading, and fallback resolution |
 | `app-info.ts` | `AppInfo` -- reads name/version/description from `package.json` |
 | `config.ts` | `loadConfig<T>()` -- loads and caches JSON configs from `src/config/` |
@@ -143,7 +154,7 @@ New tool handlers should extend `BaseTool` when they need concurrency control, l
 
 ### FileScanner (Facade)
 
-`FileScanner.findFiles()` provides a single entry point for filesystem scanning that respects `.gitignore`, `includePath`, and `excludePath` glob patterns. All tools that scan files must use this utility.
+`FileScanner.findFiles()` provides a single entry point for filesystem scanning that respects `.gitignore`, `includePath`, and `excludePath` glob patterns. Canonical location: `src/utils/file.ts`. All tools that scan files must use this utility.
 
 ## Concurrency Model
 
@@ -161,3 +172,20 @@ interface McpToolResponse {
 ```
 
 The `text` field is typically `JSON.stringify(data, null, 2)` for structured data, or a plain string for simple responses. The `isError` flag is set only on failure.
+
+## Workspace Directory
+
+When `init_workspace` is called, docsgrep creates a `.docsgrep/` directory in the project root:
+
+```
+.docsgrep/
+├── cache/
+│   └── data/            # TTL-based file cache (cache.ts)
+├── logs/                # Daily log files (logger.ts)
+│   └── docsgrep-YYYY-MM-DD.log
+├── repos/               # Cloned remote repos (git.ts)
+│   └── {name}-{hash}/
+└── .gitignore           # Excludes .docsgrep/ from version control
+```
+
+All paths are resolved via `src/utils/workspace.ts` (`resolveWorkspace`). The `.docsgrep/` directory is added to `.gitignore` automatically by `init_workspace`. Cache pruning happens via `pruneCache()` in `src/utils/cache.ts`.
